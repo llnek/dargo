@@ -1,0 +1,263 @@
+(ns ^{:doc "" :author "Kenneth Leung"}
+
+  czlab.elmo.ecs.COMP
+  (:require ["kirby"
+             :as ky
+             :refer []]))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CGesture [ecs/Component]
+  ""
+  (constructor "" []
+    (assoc! this
+            :tpid ::CGesture
+            :right #f
+            :left #f
+            :top #f
+            :bottom #f))
+
+  (hasMoved? "" []
+    (or this.down this.up this.right this.left))
+
+  (reset "" []
+    (assoc! this
+            :down #f :up #f :right #f :left #f)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CHealth [ecs/Component]
+  ""
+  (alive? [] (> this.curHP 0))
+
+  (constructor [&[h c]]
+    (assoc! this
+            :godMode #f
+            :tpid ::CHealth
+            :origHP (opt?? h 1)
+            :curHP (opt?? c (opt?? h 1)))
+    (assert (<= this.curHP this.origHP) "bad health values"))
+
+  (hurt [&[damage]]
+    (set! damage (opt?? damage 1))
+    (if-not this.godMode
+      (-= this.curHP damage)))
+
+  (reset []
+    (assoc! this
+            :godMode #f
+            :curHP this.origHP))
+
+  (enterGodMode [] (assoc! this :godMode #t))
+  (exitGodMode [] (assoc! this :godMode #f))
+
+  (setHealth [h]
+    (assoc! this :origHP h :curHP h))
+
+  (percent [] (ky/percent this.curHP this.origHP))
+
+  (ratio [] (/ curHP origHP))
+
+  (isGod? [] this.godMode))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Looper [ecs/Component]
+  ""
+  (constructor []
+    (assoc! this
+            :tm (DLTimer)
+            :tpid ::Looper))
+
+  (destructor [] (CC_DROP tm.timer)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Loopers [ecs/Component]
+  ""
+  (constructor []
+    (assoc! this
+            :tms []
+            :tpid ::Loopers))
+
+  (destructor []
+    (doseq [z this.tms]
+      (CC_DROP z.timer))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CAutoma [ecs/Component]
+  ""
+  (constructor []
+    (assoc! this :tpid ::CAutoma)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CHuman [ecs/Component]
+  ""
+  (constructor [] (assoc! this :tpid ::CHuman)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CTarget [ecs/Component]
+  ""
+  (constructor []
+    (assoc! this :tpid ::CTarget)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CStats [ecs/Component]
+  ""
+  (constructor [v]
+    (assoc! this
+            :tpid ::CStats
+            :state 0
+            :value v)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CMelee [ecs/Component]
+  ""
+  (constructor []
+    (assoc! this
+            :tpid ::CMelee
+            :lastDamageTime 0
+            :selfDie? #f
+            :damage 0
+            :damageRate 0)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hypotenuse "" [vector & [angle]]
+  (set! angle (opt?? angle (/ Math.PI 4)))
+  (cc/p (* vector Math/cos angle)
+        (* vector Math/sin angle)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CMove [ecs/Component]
+  ""
+  (constructor [&[mspeed macc target]]
+    (assoc! this
+            :tpid ::CMove
+            :maxSpeed (if (number? mspeed)
+                        (hypotenuse mspeed) (cc/p))
+            :maxAccel (if (number? macc)
+                        (hypotenuse macc) (cc/p))
+            :moveTarget (opt?? target (cc/p))
+            :lastPos (cc/p)
+            :nextPos (cc/p)
+            :speed (cc/p)
+            :accel (cc/p)
+            :vel (cc/p)
+            :acc (cc/p)
+            :interval 0
+            :power 0
+            :angle 0)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype UICObj [ecs/Component]
+  ""
+  (constructor [n]
+    (assoc! this
+            :node n
+            :tpid ::CPixie))
+
+  (flipAuto [b] (assoc! this :auto? b))
+
+  (isAuto? [] (get this :auto?))
+
+  (bindNode [n]
+    (assoc! this :auto? #t :node n))
+
+  (hide [] (if this.node (.setVisible this.node #f)))
+  (show [] (if this.node (.setVisible this.node #t)))
+
+  (inflate [&[x y]]
+    (when this.node
+      (if (and (number? x)
+               (number? y))
+        (.setPosition this.node x y))
+      (.show this)))
+
+  (deflate []
+    (when this.node
+      (.unscheduleAllCallbacks node)
+      (.stopAllActions this.node)
+      (.hide this)))
+
+  (height []
+    (if this.node
+      (-> this.node
+          (.boundingBox )
+          (get :size)(get :height)) 0))
+
+  (width []
+    (if this.node
+      (-> this.node
+          (.boundingBox )
+          (get :size)(get :width)) 0))
+
+  (bbox []
+    (if this.node
+      (.boundingBox this.node) (cc/rect)))
+
+  (setPos [x y] (if this.node
+                  (.setPosition this.node x y)))
+
+  (pos []
+    (if this.node (.getPosition this.node) (cc/p)))
+
+  (csize []
+    (if this.node
+      (get (.getBoundingBox this.node) :size) (cc/size)))
+
+  (circum []
+    (if this.node
+      (-> (.getBoundingBox this.node)
+          (get :size)
+          (get :width)) 0))
+
+  (radius [] (* 0.5 (.circum this)))
+
+  (tag [] (if this.node (.getTag this.node) 0)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CPixie [UICObj]
+  ""
+  (constructor [s] (super (if s s (new cc/Sprite))))
+
+  (reifyFrame ^:static [n]
+    (var s (new cc/Sprite))
+    (.initWithSpriteFrameName s n)
+    (.autorelease s)
+    (new CPixie s))
+
+  (reifyFile ^:static [n]
+    (var s (new cc/Sprite))
+    (.initWithFile s n)
+    (.autorelease s)
+    (new CPixie s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CDrawNode [UICObj]
+  ""
+  (constructor [s] (super (if s s (new cc/DrawNode))))
+
+  (reify ^:static []
+    (var z (new cc/DrawNode))
+    (.init z)
+    (.autorelease z)
+    (new CDrawNode z)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CNode [UICObj]
+  ""
+  (constructor [n] (super (if n n (new cc/Node)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype CLayer [UICObj]
+  ""
+  (constructor [y] (super (if y y (new cc/Layer)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype ColorLayer [UICObj]
+  ""
+  (constructor [n] (super (if n n (new cc/LayerColor)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+

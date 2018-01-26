@@ -1,0 +1,97 @@
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+
+  czlab.elmo.ecs.NegaMax
+
+  (:require ["kirby"
+             :as ky
+             :refer [fillArray]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const PINF 1000000)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype FFrame []
+  (constructor [n]
+    (assoc! this
+            :lastBestMove -1
+            :other -1
+            :cur -1
+            :state (fillArray (* n n) 0))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype GameBoard []
+  "Generic game-board interface"
+  (constructor [sz] )
+
+  (getNextMoves "" [frame] nil)
+  (evalScore "" [frame] nil)
+
+  (isStalemate? "" [frame] nil)
+  (isOver? "" [frame] nil)
+
+  (undoMove "" [frame move] nil)
+  (makeMove "" [frame move] nil)
+
+  (switchPlayer "" [frame] nil)
+  (takeFFrame "" [] nil))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- negaMax*
+
+  "" [board game maxDepth depth alpha beta]
+
+  (var openMoves (.getNextMoves board game)
+       bestMove (1st openMoves)
+       bestValue  (- PINF))
+
+  (if (= depth maxDepth)
+    (assoc! game
+            :lastBestMove (1st openMoves)))
+
+  (var~ rc move)
+  (for [i 0 sz (n# openMoves)
+        :while (< i sz) :recur (+1 i)]
+    (set! move (.@i openMoves))
+    ;;try a move
+    (.makeMove board game move)
+    (.switchPlayer board game)
+    (set! rc
+          (- (negaMax board game maxDepth (-1 depth) (- beta) (- alpha))))
+    ;;now, roll it back
+    (.switchPlayer board game)
+    (.undoMove board game move)
+    ;;how did we do ?
+    (set! bestValue (Math/max bestValue rc))
+    (when (< alpha rc)
+      (set! alpha rc
+            bestMove move)
+      (if (= depth maxDepth)
+        (assoc! game :lastBestMove move))
+      (if (>= alpha beta) (break-out-of-loop!))))
+  ;;
+  bestValue)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn negaMax
+  "nega Min-Max algo function"
+  [board game maxDepth depth alpha beta]
+
+  (if (or (zero? depth)
+          (.isOver? board game))
+    (.evalScore board game)
+    (negaMax* board game maxDepth depth alpha beta)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn evalNegaMax
+  "Main method for nega-max algo"
+  [board]
+  (var ptr (.takeFFrame board))
+  (negaMax board ptr 10 10 (- PINF) PINF)
+  (get ptr :lastBestMove))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+
