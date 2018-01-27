@@ -264,659 +264,464 @@
     (.setDelayPerUnit dpu)
     (.setLoops loops)))
 
-
-//////////////////////////////////////////////////////////////////////////
-// Reify a sprite from its frame name
-c::Sprite* reifySprite(const sstr &name) {
-  return c::Sprite::createWithSpriteFrameName(name);
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Reify a sprite from its frame name
-c::Sprite* createSprite(const sstr &name) {
-  return c::Sprite::create( XCFG()->getImage(name));
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-c::Sprite* loadSprite(const sstr &fname, const sstr &path) {
-  auto sp= c::Sprite::create();
-  sp->initWithFile(path + "/" + fname);
-  return sp;
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-const Box4 bbox4(not_null<c::Node*> s) {
-  auto z= s->getBoundingBox();
-  return Box4(z.origin.y + z.size.height,
-      z.origin.x + z.size.width,
-      z.origin.y,
-      z.origin.x);
-  /*
-    GetTop(s),
-    GetRight(s),
-    GetBottom(s),
-    GetLeft(s) */
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-void prelude() {
-  runEx(XCFG()->prelude());
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-void runEx(not_null<c::Scene*> ns) {
-  run(ns, CC_CSV(c::Float, "SCENE_DELAY"));
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-void run(not_null<c::Scene*> ns, float delay) {
-  CC_DTOR()->replaceScene(
-      c::TransitionCrossFade::create(delay, ns));
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-void run(not_null<c::Scene*> ns) {
-  CC_DTOR()->replaceScene(ns);
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-void pushEx(not_null<c::Scene*> ns) {
-  push(ns, CC_CSV(c::Float, "SCENE_DELAY"));
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-void push(not_null<c::Scene*> ns, float delay) {
-  CC_DTOR()->pushScene(
-      c::TransitionCrossFade::create(delay, ns));
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-void push(not_null<c::Scene*> ns) {
-  CC_DTOR()->pushScene(ns);
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-bool isTransitioning() {
-  return dynamic_cast<c::TransitionScene*>(
-      CC_DTOR()->getRunningScene()) != CC_NIL;
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Find size of this sprite
-//
-const CCT_SZ calcSize(const sstr &frame) {
-  //return reifySprite(frame)->getContentSize();
-  return reifySprite(frame)->boundingBox().size;
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Calculate halves of width and height of this sprite
-//
-const CCT_SZ halfHW(not_null<c::Node*> s) {
-  //auto z= s->getContentSize();
-  auto z= s->getBoundingBox().size;
-  return CCT_SZ(z.width * 0.5, z.height * 0.5);
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Reify a rectangle from this sprite
-//
-const CCT_RT bbox(not_null<c::Node*> s) {
-  return s->getBoundingBox();
-  /*
-  return CCT_RT(GetLeft(s),
-                 GetBottom(s),
-                 GetWidth(s),
-                 GetHeight(s)); */
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-float getHeight(not_null<c::Node*> s) {
-  //return s->getContentSize().height * s->getScaleY();
-  return s->getBoundingBox().size.height;
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-float getWidth(not_null<c::Node*> s) {
-  //return s->getContentSize().width * s->getScaleX();
-  return s->getBoundingBox().size.width;
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-float getContentHeight(not_null<c::Node*> s) {
-  return s->getContentSize().height;
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-float getContentWidth(not_null<c::Node*> s) {
-  return s->getContentSize().width;
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-static float get_XXX(not_null<c::Node*> s, float px, float bound) {
-  //auto w= s->getContentSize().width;
-  auto w= s->getBoundingBox().size.width;
-  auto a= s->getAnchorPoint().x;
-  return px + (bound - a) * w ;
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-static float get_YYY(not_null<c::Node*> s, float py, float bound) {
-  //auto h= s->getContentSize().height;
-  auto h= s->getBoundingBox().size.height;
-  auto a= s->getAnchorPoint().y;
-  return py + (bound - a) * h ;
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-float getLeft(not_null<c::Node*> s) {
-  return get_XXX(s, s->getPosition().x, anchorL().x);
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-float getRight(not_null<c::Node*> s) {
-  return get_XXX(s, s->getPosition().x, anchorR().x);
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-float getBottom(not_null<c::Node*> s) {
-  return get_YYY(s, s->getPosition().y, anchorB().y);
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-float getTop(not_null<c::Node*> s) {
-  return get_YYY(s, s->getPosition().y, anchorT().y);
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Get the x pos of the center of the visible screen
-//
-float centerX() { return center().x; }
-
-//////////////////////////////////////////////////////////////////////////
-// Get the y pos of the center of the visible screen.
-//
-float centerY() { return center().y; }
-
-//////////////////////////////////////////////////////////////////////////
-// Get the center of the visible screen
-//
-const CCT_PT center() {
-  auto rc = visRect();
-  return CCT_PT(rc.origin.x + HWZ(rc.size), rc.origin.y + HHZ(rc.size));
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Get the screen height
-//
-float screenHeight() { return screen().height; }
-
-//////////////////////////////////////////////////////////////////////////
-// Get the screen width
-//
-float screenWidth() { return screen().width; }
-
-//////////////////////////////////////////////////////////////////////////
-// Get the visible screen rectangle
-//
-const CCT_RT visRect() {
-  return CC_DTOR()->getOpenGLView()->getVisibleRect();
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-const CCT_SZ visSize() {
-  return CC_DTOR()->getOpenGLView()->getVisibleRect().size;
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Get the visible screen box
-//
-const Box4 visBox() {
-  auto vr = CC_DTOR()->getOpenGLView()->getVisibleRect();
-  return Box4(
-    vr.origin.y + vr.size.height,
-    vr.origin.x + vr.size.width,
-    vr.origin.y,
-    vr.origin.x
-  );
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Get the actual window/frame size.
-//
-const CCT_SZ screen() {
-  return CC_DTOR()->getOpenGLView()->getFrameSize();
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Get the actual screen center.
-//
-const CCT_PT scenter() {
-  auto sz = screen();
-  return CCT_PT(HWZ(sz), HHZ(sz));
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Get the center of this box.
-//
-const CCT_PT vboxMID(const Box4 &box) {
-  return CCT_PT(box.left + (box.right-box.left) * 0.5,
-              box.bottom + (box.top-box.bottom) * 0.5);
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Test if this box is hitting boundaries
-// rect.x & y are center positioned
-//
-// If hit, the new position and velocities
-// are returned
-//
-bool traceEnclosure(float dt, const Box4 &bbox,
-    const Box4 &rect, const CCT_V2 &vel,
-    CCT_PT &outPos, CCT_V2 &outVel) {
-
-  auto sz= rect.top-rect.bottom;//height
-  auto sw= rect.right-rect.left;//width
-  auto y = rect.bottom+(sz*0.5) + dt * vel.y;// new y
-  auto x = rect.left+(sw*0.5) + dt * vel.x;// new x
-  auto vx= vel.x;
-  auto vy= vel.y;
-  auto hit=false;
-
-  if (y + sz > bbox.top) {
-    //hitting top wall
-    y = bbox.top - sz;
-    vy = -vy;
-    hit=true;
-  }
-  else
-  if (y - sz < bbox.bottom) {
-    //hitting bottom wall
-    y = bbox.bottom + sz;
-    vy = -vy;
-    hit=true;
-  }
-
-  if (x + sw > bbox.right) {
-    //hitting right wall
-    x = bbox.right - sw;
-    vx = -vx;
-    hit=true;
-  }
-  else
-  if (x - sw < bbox.left) {
-    //hitting left wall
-    x = bbox.left + sw;
-    vx = -vx;
-    hit=true;
-  }
-
-  outPos.x=x;
-  outPos.y=y;
-  outVel.x=vx;
-  outVel.y=vy;
-
-  return hit;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-bool isIntersect(const Box4 &a1, const Box4 &a2) {
-  return ! (a1.left > a2.right ||
-            a2.left > a1.right ||
-            a1.top < a2.bottom ||
-            a2.top < a1.bottom);
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Get the sprite from the frame cache using its id (e.g. #ship)
-//
-c::SpriteFrame* getSpriteFrame(const sstr &frameid, const CCT_RT &r) {
-  auto f= CC_SCAC()->getSpriteFrameByName(frameid);
-  f->setRect(r);
-  return f;
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Get the sprite from the frame cache using its id (e.g. #ship)
-//
-c::SpriteFrame* getSpriteFrame(const sstr &frameid) {
-  return CC_SCAC()->getSpriteFrameByName(frameid);
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT anchorC() { return CCT_PT::ANCHOR_MIDDLE;}
-
-//////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT anchorT() { return CCT_PT::ANCHOR_MIDDLE_TOP;}
-
-//////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT anchorTR() { return CCT_PT::ANCHOR_TOP_RIGHT; }
-
-//////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT anchorR() { return CCT_PT::ANCHOR_MIDDLE_RIGHT;}
-
-//////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT anchorBR() { return CCT_PT::ANCHOR_BOTTOM_RIGHT; }
-
-//////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT anchorB() { return CCT_PT::ANCHOR_MIDDLE_BOTTOM; }
-
-//////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT anchorBL() { return CCT_PT::ANCHOR_BOTTOM_LEFT; }
-
-//////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT anchorL() { return CCT_PT::ANCHOR_MIDDLE_LEFT; }
-
-//////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT anchorTL() { return CCT_PT::ANCHOR_TOP_LEFT; }
-
-//////////////////////////////////////////////////////////////////////////
-// not used for now.
-//
-void resolveElastic(
-    not_null<c::Node*> obj1,
-    CCT_V2 &vel1,
-    not_null<c::Node*> obj2, CCT_V2 &vel2) {
-
-  auto pos2 = obj2->getPosition();
-  auto pos1= obj1->getPosition();
-  auto sz2= CC_CSIZE(obj2);
-  auto sz1= CC_CSIZE(obj1);
-  auto hh1= HHZ(sz1);
-  auto hw1= HWZ(sz1);
-  auto x = pos1.x;
-  auto y= pos1.y;
-  auto bx2 = bbox4(obj2);
-  auto bx1 = bbox4(obj1);
-
-  // coming from right
-  if (bx1.left < bx2.right && bx2.right < bx1.right) {
-    vel2.x = - fabs(vel2.x);
-    vel1.x = fabs(vel1.x);
-    x= getRight(obj2) + hw1;
-  }
-  else
-  // coming from left
-  if (bx1.right > bx2.left && bx1.left < bx2.left) {
-    vel1.x = - fabs(vel1.x);
-    vel2.x = fabs(vel2.x);
-    x= getLeft(obj2) - hw1;
-  }
-  else
-  // coming from top
-  if (bx1.bottom < bx2.top && bx1.top > bx2.top) {
-    vel2.y = - fabs(vel2.y);
-    vel1.y = fabs(vel1.y);
-    y= getTop(obj2) + hh1;
-  }
-  else
-  // coming from bottom
-  if (bx1.top > bx2.bottom && bx2.bottom > bx1.bottom) {
-    vel1.y = - fabs(vel1.y);
-    vel2.y = fabs(vel2.y);
-    y= getBottom(obj2) - hh1;
-  }
-  else {
-    return;
-  }
-  //obj1->updatePosition(x,y);
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT clamp(const CCT_PT& loc, const CCT_SZ &sz, const Box4 &world) {
-  auto hh = HHZ(sz);
-  auto hw = HWZ(sz);
-  auto x= loc.x;
-  auto y= loc.y;
-
-  if ((loc.x + hw) > world.right) {
-    x = world.right - hw;
-  }
-  if ((loc.x - hw) < world.left) {
-    x = world.left + hw;
-  }
-  if ((loc.y - hh) < world.bottom) {
-    y = world.bottom + hh;
-  }
-  if ((loc.y + hh) > world.top) {
-    y = world.top - hh;
-  }
-
-  return CCT_PT(x,y);
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT clamp(const CCT_PT &cur, const Box4 &bx) {
-  return ccpClamp(cur, c::ccp(bx.left, bx.bottom), c::ccp(bx.right, bx.top));
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-int randInt(int upper) {
-    //auto r=cocos2d::rand_0_1();
-    //CCLOG("rand01 ===== %f", r);
-  return (int) floor( cocos2d::rand_0_1() * upper);
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-float randFloat(float upper) {
-  return cocos2d::rand_0_1() * upper;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-int randSign() {
-    return (::rand() % 2) == 1 ? 1 : -1;
-  /*
-  int n=  cocos2d::rand_0_1() * 10;
-  switch (n) {
-    case 0: case 2: case 4: case 6: case 8: return 1;
-    default: return -1;
-  }
-  */
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-float rand() {
-  return cocos2d::rand_0_1();
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-float degToRad(float deg) {
-  return deg * M_PI / 180;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-long long timeInMillis() {
-  return c::utils::getTimeInMilliseconds();
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT calcXY(float angle, float hypot) {
-  // quadrants =  4 | 1
-  //             --------
-  //              3 | 2
-  float theta, q, x, y;
-  if (angle >= 0 && angle <= 90) {
-    theta = degToRad(90 - angle);
-    x = cos(theta);
-    y = sin(theta);
-    q=1;
-  }
-  else
-  if (angle >= 90 && angle <= 180 ) {
-    theta = degToRad(angle - 90);
-    x = cos(theta);
-    y =  - sin(theta);
-    q=2;
-  }
-  else
-  if (angle >= 180 && angle <= 270) {
-    theta = degToRad(270 - angle);
-    x = - cos(theta);
-    y = - sin(theta);
-    q=3;
-  }
-  else
-  if (angle >= 270 && angle <= 360) {
-    theta= degToRad(angle - 270);
-    x = - cos(theta);
-    y = sin(theta);
-    q=4;
-  }
-  else {
-  }
-
-  return CCT_PT( x * hypot, y * hypot);
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-VOIDFN throttle(VOIDFN func, int wait) {
-  long long ww= (long long)wait;
-  long long previous = 0;
-  return [=]() mutable {
-    auto now = timeInMillis();
-    if (previous==0)
-    { previous = now; }
-    auto remaining = ww - (now - previous);
-    if (remaining <= 0 || remaining > ww) {
-      previous = now;
-      func();
-    }
-  };
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-void testCollide(not_null<f::FPool*> p1, not_null<ecs::Node*> node) {
-  if (node->status())
-    p1->foreach([=](f::Poolable* _p1) {
-      auto e1= (ecs::Node*) _p1;
-      testCollide(e1,node);
-    });
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-void testCollide(not_null<f::FPool*> p1, not_null<f::FPool*> p2) {
-  p1->foreach([=](f::Poolable* _p1) {
-  p2->foreach([=](f::Poolable* _p2) {
-    auto e2= (ecs::Node*) _p2;
-    auto e1= (ecs::Node*) _p1;
-    testCollide(e1,e2);
-  });
-  });
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-void testCollide(not_null<ecs::Node*> e1, not_null<ecs::Node*> e2) {
-  auto s2= CC_GEC(f::CPixie,e2.get(),"f/CPixie");
-  auto s1= CC_GEC(f::CPixie,e1.get(),"f/CPixie");
-  if (e2->status() &&
-      e1->status() &&
-      collide(s2,s1)) {
-    auto h2= CC_GEC(f::CHealth,e2.get(),"f/CHealth");
-    auto h1= CC_GEC(f::CHealth,e1.get(),"f/CHealth");
-    h2->hurt();
-    h1->hurt();
-  }
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-void hibernate(not_null<ecs::Node*> node) {
-  auto s=CC_GEC(f::CPixie,node.get(),"f/CPixie");
-  if (s) { s->deflate(); }
-  node->yield();
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-void resurrect(not_null<ecs::Node*> node, float x, float y) {
-  auto h=CC_GEC(f::CHealth,node.get(),"f/CHealth");
-  auto s=CC_GEC(f::CPixie,node.get(),"f/CPixie");
-  if (s) { s->inflate(x,y); }
-  if (h) { h->reset(); }
-  node->take();
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-void kumakaze(not_null<ecs::Node*> node) {
-  auto h=CC_GEC(f::CHealth,node.get(),"f/CHealth");
-  if (h) {
-    h->curHP = 0;
-  }
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-void resurrect(not_null<ecs::Node*> node) {
-  auto h=CC_GEC(f::CHealth,node.get(),"f/CHealth");
-  auto s=CC_GEC(f::CPixie,node.get(),"f/CPixie");
-  if (s) { s->inflate(); }
-  if (h) { h->reset(); }
-  node->take();
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-void resolveNodes(not_null<f::FPool*> pool) {
-  pool->foreach([=](f::Poolable *p) {
-    if (p->status()) {
-      auto ht=CC_GEC(f::CHealth,p,"f/CHealth");
-      if (N_NIL(ht) &&
-          !ht->alive())
-        hibernate(PCAST(ecs::Node,p));
-    }
-  });
-}
-
-
-NS_END
-NS_END
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createSprite
+  "Reify a sprite from its frame name"
+  [name]
+  (.createWithSpriteFrameName cc/Sprite name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createImage
+  "Reify a sprite from its frame name"
+  [name]
+  (.create cc/Sprite (xcfg/getImage name)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn loadSprite
+  ""
+  [fname path]
+  (var sp (.create cc/Sprite))
+  (.initWithFile sp (str path "/" fname))
+  sp)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn bbox4 "" [s]
+  (var {:keys [origin size]} (.getBoundingBox s))
+  (Box4 (+ origin.y size.height)
+        (+ origin.x size.width)
+        origin.y
+        origin.x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn prelude "" [] (runEx (xcfg/prelude)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn runEx "" [s]
+  (run s (xcfg/cstVal :SCENE-DELAY)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn run "" [s & [delay]]
+  (if (number? delay)
+    (->> (.create cc/TransitionCrossFade delay s)
+         (.replaceScene cc.director))
+    (.replaceScene cc.director)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn push "" [s & [delay]]
+  (if (number? delay)
+    (set! delay (xcfg/cstVal :SCENE-DELAY)))
+  (.pushScene cc.director
+      (.create cc/TransitionCrossFade delay s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isTransitioning? "" []
+  (some? (.getRunningScene cc.director)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn calcSize
+  "Find size of this sprite"
+  [frame]
+  (get (.boundingBox (createSprite frame)) :size))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn halfHW
+  "Calculate halves of width and height of this sprite"
+  [s]
+  (var z (get (.getBoundingBox s) :size))
+  (cc/size (* 0.5 z.width) (* 0.5 z.height)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn bbox
+  "Reify a rectangle from this sprite"
+  [s]
+  (.getBoundingBox s))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getHeight "" [s]
+  (get-in (.getBoundingBox s) [:size :height]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getWidth "" [s]
+  (get-in (.getBoundingBox s) [:size :width]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getContentHeight "" [s]
+  (.-height (.getContentSize s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getContentWidth "" [s]
+  (.-width (.getContentSize s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn get-XXX "" [s px bound]
+  (var w (get-in (.getBoundingBox s) [:size :width])
+       a (.-x (.getAnchorPoint s)))
+  (+ px (* w (- bound a))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn get-YYY "" [s py bound]
+  (var h (get-in (.getBoundingBox s) [:size :height])
+       a (.-y (.getAnchorPoint s)))
+  (+ py (* h (- bound a))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getLeft "" [s]
+  (get-XXX s (.-x (.getPosition s)) (.-x (anchorL))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getRight "" [s]
+  (get-XXX s (.-x (.getPosition s)) (.-x (anchorR))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getBottom "" [s]
+  (get-YYY s (.-y (.getPosition s)) (.-y (anchorB))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getTop "" [s]
+  (get-YYY s (.-y (.getPosition s)) (.-y (anchorT))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn centerX
+  "Get the x pos of the center of the visible screen"
+  []
+  (.-x (center)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn centerY
+  "Get the y pos of the center of the visible screen."
+  []
+  (.-y (center)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn center
+  "Get the center of the visible screen"
+  []
+  (var {:keys [origin size]} (visRect))
+  (cc/p (+ origin.x (HWZ size))
+        (+ origin.y (HHZ size))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn screenHeight
+  "Get the screen height" [] (.-height (screen)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn screenWidth
+  "Get the screen width" [] (.-width (screen)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn visRect
+  "Get the visible screen rectangle" []
+  (-> cc.director
+      (.getOpenGLView) (.getVisibleRect)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn visSize "" []
+  (get (-> cc.director
+           (.getOpenGLView)
+           (.getVisibleRect)) :size))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn visBox
+  "Get the visible screen box" []
+  (var {:keys [origin size]}
+       (-> cc.director
+           (.getOpenGLView)(.getVisibleRect)))
+  (Box4 (+ origin.y size.height)
+        (+ origin.x size.width) origin.y origin.x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn screen
+  "Get the actual window/frame size." []
+  (-> cc.director
+      (.getOpenGLView)(.getFrameSize)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn scenter
+  "Get the actual screen center." []
+  (var sz (screen))
+  (cc/p (HWZ sz) (HHZ sz)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vboxMID
+  "Get the center of this box." [box]
+  (cc/p (+ box.left (* 0.5 (- box.right box.left)))
+        (+ box.bottom (* 0.5 (- box.top box.bottom)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn traceEnclosure
+  "Test if this box is hitting boundaries
+  rect.x & y are center positioned
+  If hit, the new position and velocities
+  are returned"
+  [dt bbox rect vel]
+
+  (var sz (- rect.top rect.bottom) ;height
+       sw (- rect.right rect.left) ;width
+       y (+ rect.bottom
+            (* sz 0.5) (* dt vel.y)) ;new y
+       x (+ rect.left
+            (* sw 0.5) (* dt vel.x)) ;new x
+       vx vel.x vy vel.y hit? #f)
+
+  (cond
+    (> (+ y sz) bbox.top) ;;hitting top wall
+    (set! y (- bbox.top sz)
+          vy (- vy)
+          hit? #t)
+    (< (- y sz) bbox.bottom) ;;hitting bottom wall
+    (set! y (+ bbox.bottom sz)
+          vy (- vy)
+          hit? #t))
+  (cond
+    (> (+ x sw) bbox.right) ;;hitting right wall
+    (set! x (- bbox.right  sw)
+          vx (- vx)
+          hit? #t)
+    (< (- x sw) bbox.left) ;;hitting left wall
+    (set! x  (+ bbox.left  sw)
+          vx (- vx)
+          hit? #t))
+  ;return new position and velocity
+  {:hit?  hit?
+   :pos (cc/p x y)
+   :vel (cc/p vx vy)})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isIntersect? "" [a1 a2]
+  (not (or (> a1.left a2.right)
+           (> a2.left a1.right)
+           (< a1.top a2.bottom)
+           (< a2.top a1.bottom))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const *scac*
+(fn [&xs]
+(var that cc.spriteFrameCache)
+(that.getSpriteFrameByName.apply that xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getSpriteFrame
+  "Get the sprite from the frame cache
+  using its id (e.g. #ship)"
+  [frameid & [rect]]
+  (var f (*scac* frameid))
+  (if (some? rect) (.setRect f rect)) f)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn anchorC "" [] (cc/p 0.5 0.5))
+(defn anchorT "" [] (cc/p 0.5 1))
+(defn anchorTR "" [] (cc/p 1 1))
+(defn anchorR "" [] (cc/p 1 0.5))
+(defn anchorBR "" [] (cc/p 1 0))
+(defn anchorB "" [] (cc/p 0.5 0))
+(defn anchorBL "" [] (cc/p 0 0))
+(defn anchorL "" [] (cc/p 0 0.5))
+(defn anchorTL "" [] (cc/p 0 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const *csize* (fn [s]
+                 (.-size (.getBoundingBox s))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resolveElastic
+  "not used for now."
+  [obj1 vel1 obj2 vel2]
+  (var pos2 (.getPosition obj2)
+       pos1 (.getPosition obj1)
+       sz2 (*csize* obj2)
+       sz1 (*csize* obj1)
+       hh1 (HHZ sz1)
+       hw1 (HWZ sz1)
+       x pos1.x
+       y pos1.y
+       bx2 (bbox4 obj2)
+       bx1 (bbox4 obj1))
+  (cond
+    ;; coming from right
+    (and (< bx1.left bx2.right)
+         (< bx2.right bx1.right))
+    (do (assoc! vel2 :x (- (fabs vel2.x)))
+        (assoc! vel1 :x (fabs vel1.x))
+        (set! x (+ (getRight obj2) hw1)))
+
+    ;; coming from left
+    (and (> bx1.right bx2.left)
+         (< bx1.left bx2.left))
+    (do (assoc! vel1 :x (- (fabs vel1.x)))
+        (assoc! vel2 :x (fabs vel2.x))
+        (set! x (- (getLeft obj2) hw1)))
+    ;; coming from top
+    (and (< bx1.bottom bx2.top)
+         (> bx1.top bx2.top))
+    (do (assoc! vel2 :y (- (fabs vel2.y)))
+        (assoc! vel1 :y (fabs vel1.y))
+        (set! y (+ (getTop obj2) hh1)))
+    ;; coming from bottom
+    (and (> bx1.top bx2.bottom)
+         (> bx2.bottom bx1.bottom))
+    (do (assoc! vel1 :y (- (fabs vel1.y)))
+        (assoc! vel2 :y (fabs vel2.y))
+        (set! y (- (getBottom obj2) hh1))))
+  ;(.updatePosition obj1 x y)
+  nil)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn clamp3 "" [loc sz world]
+  (var hh (HHZ sz)
+       hw (HWZ sz)
+       x loc.x
+       y loc.y)
+  (if (> (+ loc.x hw) world.right)
+    (set! x (- world.right hw)))
+  (if (< (- loc.x hw) world.left)
+    (set! x (+ world.left hw)))
+  (if (< (- loc.y hh) world.bottom)
+    (set! y (+ world.bottom hh)))
+  (if (> (+ loc.y hh) world.top)
+    (set! y (- world.top hh)))
+  (cc/p x y))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn clamp2 "" [cur bx]
+  (cc/pClamp cur
+             (cc/p bx.left bx.bottom)
+             (cc/p bx.right bx.top)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randInt "" [upper]
+  (Math/floor (* upper (cc/ramdom0To1))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randFloat
+  "" [upper] (* upper (cc/ramdom0To1)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randSign "" []
+  (if (> (cc/ramdom0To1) 0.5) 1 -1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn rand "" [] (cc/ramdom0To1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn degToRad
+  "" [deg] (* deg (/ Math/PI 180)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn timeInMillis "" [] (.getTime (new Date)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn calcXY
+  "quadrants =  4 | 1
+               --------
+                3 | 2"
+  [angle hypot]
+
+  (var~ theta q x y)
+  (cond
+    (and (>= angle 0)
+         (<= angle 90))
+    (set! theta (degToRad (- 90 angle))
+          x (cos theta)
+          y (sin theta)
+          q 1)
+    (and (>= angle 90)
+         (<= angle 180))
+    (set! theta (degToRad (- angle 90))
+          x (cos theta)
+          y (- (sin theta))
+          q 2)
+    (and (>= angle 180)
+         (<= angle 270))
+    (set! theta (degToRad (- 270 angle))
+          x (- (cos theta))
+          y (- (sin theta))
+          q 3)
+    (and (>= angle 270)
+         (<= angle 360))
+    (set! theta (degToRad (- angle 270))
+          x (- (cos theta))
+          y (sin theta)
+          q 4))
+  (cc/p (* x hypot) (* y hypot)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn throttle "" [func wait]
+  (var previous  0)
+  (fn []
+    (var now (timeInMillis))
+    (if (zero? previous)
+      (set! previous now))
+    (var remaining (- wait (- now previous)))
+    (when (or (<= remaining 0)
+              (> remaining wait))
+      (set! previous now)
+      (func))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn testCollideNode "" [p1 node]
+  (when (get node :status)
+    (.foreach p1
+              (fn [e]
+                (testCollideNodes e node)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn testCollidePools "" [p1 p2]
+  (.foreach p1
+            (fn [e1]
+              (.foreach p2
+                        (fn [e2]
+                          (testCollideNodes e1 e2))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn testCollideNodes "" [e1 e2]
+  (var s2 (.get e2 :pixie)
+       s1 (.get e1 :pixie))
+  (when (and (get e2 :status)
+             (get e1 :status)
+             (collide s2 s1))
+    (.hurt (get e2 :health))
+    (.hurt (get e1 :health))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hibernate "" [node]
+  (var s (get node :pixie))
+  (if s (.deflate s))
+  (.yield node))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resurrect "" [node x y]
+  (var h (get node :health)
+       s (get node :pixie))
+  (if s (.inflate s x y))
+  (if h (.reset h))
+  (.take node))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn kumakaze "" [node]
+  (var h (get node :health))
+  (if h
+    (assoc! h :curHP 0)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resurrect "" [node]
+  (var h (get node :health)
+       s (get node :pixie))
+  (if s (.inflate s))
+  (if h (.reset h))
+  (.take node))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resolveNodes "" [pool]
+  (.foreach pool
+            (fn [e]
+              (when (get e :status)
+                (var ht (get e :health))
+                (if (and ht
+                         (not (get ht :alive?)))
+                  (hibernate e))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
 
 
