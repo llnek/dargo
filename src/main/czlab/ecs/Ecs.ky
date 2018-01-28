@@ -36,20 +36,184 @@
     (when-some [m (get this.rego cid)]
       (var eid (get e :eid)
            it2 (get m eid))
-      (if it2 (delete! m eid))))
+      (dissoc! m eid)))
 
   (bind [co e]
     (var cid (get co :tpid)
          eid (get e :eid)
          m (get this.repo cid))
-    (if (nichtcs? m)
-      (set! m (mc_new CompoCache)))
-    (assoc! this.rego cid m))
+    (when (nichtcs? m)
+      (set! m (mc_new CompoCache))
+      (assoc! this.rego cid m))
+    (assoc! m eid co)))
 
-  ;m->insert(S__PAIR(NodeId,Component*, eid, c));
-  )
+;;;engine
+
+(deftype Engine []
+  ""
+  (constructor [&[cfg]]
+    (assoc! this
+            :config (opt?? cfg nil)
+            :systemList []
+            :ents {}
+            :types {}
+            :updating? #f
+            :garbo []))
+  ;virtual void initEntities() = 0;
+  ;virtual void initSystems() = 0;
+
+  (findNodes
+    "Find all nodes having these components"
+    [comType & comTypes]
+    (var pmin Number/MAX_SAFE_INTEGER
+         missed? #f pm nil ccs [] ret [])
+    (.unshift comTypes comType)
+    ;;find shortest cache, doing an intersection
+    (var~ pmks ccsz eid cid c sum)
+    (for [i 0 sz (n# comTypes)
+          :while (< i sz) :recur (+1 i)]
+      (set! cid (.@i comTypes)
+            c (get this.types cid))
+      (when (nil? c)
+        (true! missed?) (break-out-of-loop!))
+      (when (< (n# c) pmin)
+        (set! pmin (n# c) pm c))
+      (conj! ccs c))
+    ;;use the shortest cache as the baseline
+    (set! ccsz (n# ccs))
+    (when (and (> ccsz 0)
+               (not missed?))
+      (set! pmks (keys pm))
+      (for [i 0 sz (n# pmks)
+            :while (< i sz) :recur (+1 i)]
+        (set! sum 0
+              eid (.@i pmks))
+        ;; look for intersection
+        (for [j 0 :while (< j ccsz) :recur (+1 j)]
+          (set! c (.@j ccs))
+          (if (= c pm)
+            (++ sum)
+            (if (get c eid) (++ sum))))
+        ;; if found in all caches...
+        (if (= sum ccsz) ;; all matched
+          (if-some [e (get this.ents eid)]
+            (conj! ret e)))))
+    ret)
+
+  (getNodes []
+    (this.ents)
+  F__LOOP(it, _ents) {
+    rc.push_back(it->second);
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const s_vec<Node*> Engine::getNodes() {
+  s_vec<Node*> rc;
+  getNodes(rc);
+  return rc;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+NodeId Engine::generateEid() {
+  auto rc= ++_lastId;
+  if (rc < INT_MAX) {} else {
+    throw "too many entities";
+  }
+  return rc;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+Node* Engine::reifyNode(const sstr &n, bool take) {
+  auto eid= this->generateEid();
+  auto e= mc_new3(Node, this, n, eid);
+  _ents.insert(S__PAIR(NodeId,Node*,eid,e));
+  if (take) {e->take();}
+  return e;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void Engine::purgeNode(not_null<Node*> e) {
+  // cannot purge twice!
+  assert(e->isOk());
+  e->die();
+  _garbo.push_back(e);
+
+  auto it= _ents.find(e->getEid());
+  if (it != _ents.end()) {
+    _ents.erase(it);
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void Engine::purgeNodes() {
+  F__LOOP(it, _ents) {
+    delete it->second;
+  }
+  _ents.clear();
+  doHouseKeeping();
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void Engine::regoSystem(not_null<System*> s) {
+  _systemList.add(s);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void Engine::purgeSystem(not_null<System*> s ) {
+  _systemList.purge(s);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void Engine::purgeSystems() {
+  _systemList.clear();
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void Engine::update(float time) {
+  _updating = true;
+  for (auto s= _systemList._head; N_NIL(s); s= s->_next) {
+    if (s->isActive()) {
+      if (! s->update(time)) { break; }
+    }
+  }
+  doHouseKeeping();
+  _updating = false;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void Engine::ignite() {
+  initEntities();
+  initSystems();
+  for (auto s= _systemList._head; N_NIL(s); s=s->_next) {
+    s->preamble();
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void Engine::doHouseKeeping() {
+  F__LOOP(it, _garbo) {
+    delete *it;
+  }
+  _garbo.clear();
+}
 
 
+
+
+
+NS_END
 
 
 
