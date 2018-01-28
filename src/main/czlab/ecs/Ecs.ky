@@ -1,0 +1,62 @@
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+
+  czlab.elmo.core.ecs
+
+  (:require ["kirby"
+             :as ky :refer []]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Component []
+  ""
+  (constructor [&[n]] (assoc! this :node (opt?? n null))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const PreUpdate 100)
+(const NetPlay 200)
+(const AI 300)
+(const Motion 400)
+(const Move 500)
+(const Logic 600)
+(const Collide 700)
+(const Resolve 800)
+(const Render 900)
+(const Error -1)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype TypeRegistry []
+  ""
+  (constructor [] (assoc! this :rego {}))
+
+  (getCache [c] (get this.rego c))
+
+  (unbind [co e] (this.unbind (get co :tpid) e))
+
+  (unbind [cid e]
+    (when-some [m (get this.rego cid)]
+      (var eid (get e :eid)
+           it2 (get m eid))
+      (if it2 (delete! m eid))))
+
+  (bind [co e]
+    (var cid (get co :tpid)
+         eid (get e :eid)
+         m (get this.repo cid))
+    (if (nichtcs? m)
+      (set! m (mc_new CompoCache)))
+    (assoc! this.rego cid m))
+
+  ;m->insert(S__PAIR(NodeId,Component*, eid, c));
+  )
+
+
+
+
+
+
+
+
+
+
+
+
