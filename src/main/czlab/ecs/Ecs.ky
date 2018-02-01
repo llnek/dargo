@@ -9,7 +9,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Component []
   ""
-  (constructor [&[n]] (assoc! this :node (opt?? n null))))
+  (constructor [&[n]] (assign! this :node (opt?? n null))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const PreUpdate 100)
@@ -24,43 +24,41 @@
 (const Error -1)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype TypeRegistry []
-  ""
-  (constructor [] (assoc! this :rego {}))
-
-  (getCache [c] (get this.rego c))
-
-  (unbind [co e] (this.unbind (get co :tpid) e))
-
-  (unbind [cid e]
-    (when-some [m (get this.rego cid)]
-      (var eid (get e :eid)
-           it2 (get m eid))
-      (dissoc! m eid)))
-
-  (bind [co e]
-    (var cid (get co :tpid)
-         eid (get e :eid)
-         m (get this.repo cid))
-    (when (nichtcs? m)
-      (set! m (mc_new CompoCache))
-      (assoc! this.rego cid m))
-    (assoc! m eid co)))
-
 ;;;engine
+(def- lastId 0)
+(defn- generateEid "" []
+  (var rc (++ lastId))
+  (if-not (< rc Number/MAX_SAFE_INTEGER)
+    (raise! "too many entities"))
+  rc)
 
 (deftype Engine []
   ""
   (constructor [&[cfg]]
-    (assoc! this
+    (assign! this
             :config (opt?? cfg nil)
-            :systemList []
+            :updating? #f
+            :systems []
             :ents {}
             :types {}
-            :updating? #f
             :garbo []))
-  ;virtual void initEntities() = 0;
-  ;virtual void initSystems() = 0;
+
+  (unbind [co e] (.unbind this (get co :tpid) e))
+
+  (unbind [cid e]
+    (when-some [m (get this.types cid)]
+      (dissoc! m (.eid e)))
+    nil)
+
+  (bind [co e]
+    (var cid (get co :tpid)
+         eid (get e :eid)
+         m (get this.types cid))
+    (when (nichtcs? m)
+      (assoc! this.types cid m)
+      (set! m (get this.types cid)))
+    (assoc! m eid co)
+    nil)
 
   (findNodes
     "Find all nodes having these components"
@@ -74,11 +72,12 @@
           :while (< i sz) :recur (+1 i)]
       (set! cid (.@i comTypes)
             c (get this.types cid))
-      (when (nil? c)
-        (true! missed?) (break-out-of-loop!))
-      (when (< (n# c) pmin)
-        (set! pmin (n# c) pm c))
-      (conj! ccs c))
+      (cond
+        (nichts? c) (do->break! (true! missed?))
+        :else
+        (do (when (< (n# c) pmin)
+              (set! pmin (n# c) pm c))
+            (conj! ccs c))))
     ;;use the shortest cache as the baseline
     (set! ccsz (n# ccs))
     (when (and (> ccsz 0)
@@ -100,120 +99,127 @@
             (conj! ret e)))))
     ret)
 
-  (getNodes []
-    (this.ents)
-  F__LOOP(it, _ents) {
-    rc.push_back(it->second);
-  }
-}
+  (getNodes "" [] (values this.ents))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-const s_vec<Node*> Engine::getNodes() {
-  s_vec<Node*> rc;
-  getNodes(rc);
-  return rc;
-}
+  (createNode "" [n take?]
+    (var eid (generateEid)
+         e (new Node this n eid))
+    (assoc! this.ents eid e)
+    (if take? (.take! e))
+    e)
 
-//////////////////////////////////////////////////////////////////////////////
-//
-NodeId Engine::generateEid() {
-  auto rc= ++_lastId;
-  if (rc < INT_MAX) {} else {
-    throw "too many entities";
-  }
-  return rc;
-}
+  (deleteNode "" [e]
+    (asset (.ok? e) "Cannot delete twice!")
+    (.die! e)
+    (conj! this.garbo e)
+    (dissoc! this.ents (.eid e))
+    nil)
 
-//////////////////////////////////////////////////////////////////////////////
-//
-Node* Engine::reifyNode(const sstr &n, bool take) {
-  auto eid= this->generateEid();
-  auto e= mc_new3(Node, this, n, eid);
-  _ents.insert(S__PAIR(NodeId,Node*,eid,e));
-  if (take) {e->take();}
-  return e;
-}
+  (deleteNodes "" []
+    (std/resetMap! this.ents)
+    (doHouseKeeping)
+    nil)
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void Engine::purgeNode(not_null<Node*> e) {
-  // cannot purge twice!
-  assert(e->isOk());
-  e->die();
-  _garbo.push_back(e);
+  (addSystem "" [s]
+    (conj! this.systems s)
+    (sort this.systems)
+    s)
 
-  auto it= _ents.find(e->getEid());
-  if (it != _ents.end()) {
-    _ents.erase(it);
-  }
-}
+  (deleteSystem "" [s]
+    (var p (.indexOf this.systems s))
+    (when-not (neg? p)
+      (.splice this.systems p 1)
+      (sort this.systems))
+    nil)
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void Engine::purgeNodes() {
-  F__LOOP(it, _ents) {
-    delete it->second;
-  }
-  _ents.clear();
-  doHouseKeeping();
-}
+  (deleteSystems "" []
+    (std/resetVec! this.systems) nil)
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void Engine::regoSystem(not_null<System*> s) {
-  _systemList.add(s);
-}
+  (update "" [time]
+    (assign! this :updating #t)
+    (var stop? #f)
+    (doseq [s this.systems
+            :when (.active? s)
+            :while (not stop?)]
+      (if-not (.update s time) (true! stop?)))
+    (doHouseKeeping)
+    (assign! this :updating #t)
+    nil)
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void Engine::purgeSystem(not_null<System*> s ) {
-  _systemList.purge(s);
-}
+  (ignite "" [initNodes initSystems]
+    (initNodes)
+    (initSystems)
+    (doseq [s this.systems] (.preamble s)) nil)
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void Engine::purgeSystems() {
-  _systemList.clear();
-}
+  (doHouseKeeping "" [] ))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void Engine::update(float time) {
-  _updating = true;
-  for (auto s= _systemList._head; N_NIL(s); s= s->_next) {
-    if (s->isActive()) {
-      if (! s->update(time)) { break; }
-    }
-  }
-  doHouseKeeping();
-  _updating = false;
-}
+;;;;;;;;;;;;;;;;;
+; nodes
+(deftype Node [ecs/Poolable]
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void Engine::ignite() {
-  initEntities();
-  initSystems();
-  for (auto s= _systemList._head; N_NIL(s); s=s->_next) {
-    s->preamble();
-  }
-}
+  (constructor "" [e n id]
+    (assoc! this
+            :status #t
+            :cobjs {}
+            :engine e
+            :dead? #f
+            :name n
+            :node-id id))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void Engine::doHouseKeeping() {
-  F__LOOP(it, _garbo) {
-    delete *it;
-  }
-  _garbo.clear();
-}
+  (die! "" [] (assoc! this :dead? #t))
+  (eid "" [] (get this :node-id))
+  (ok? "" [] (get this :status))
 
+  (checkin "" [c]
+    (var cid (get c :tpid))
+    (assert (not (.has this cid)) "Cannot add twice")
+    (.bind this.engine c this)
+    (.setNode c this)
+    (assoc! this.cobjs cid c)
+    nil)
 
+  (delete "" [comType]
+    (when-some [c (get this.cobjs comType)]
+      (dissoc! this.cobjs comType)
+      (.unbind this.engine c this))
+    nil)
 
+  (get "" [comType]
+    (get this.cobjs comType))
 
+  (getAll "" [] (values this.cobjs))
 
-NS_END
+  (has? "" [comType]
+    (get this.cobjs comType)))
+
+;;;;;;;;;;;;;;;;
+; systems
+
+#define __decl_sys_tpid(x) \
+  virtual const ecs::SystemType typeId() { return x; }
+
+#define __decl_sys_priority(x) \
+  virtual int priority() { return x; }
+
+#define __decl_sys_preamble() \
+  virtual void preamble();
+
+#define __decl_sys_update() \
+  virtual bool update(float);
+
+;;;;;;;;;;;;;;;
+(deftype System []
+
+  (active? [] (get this :active?))
+  (getEngine [] this.engine)
+  (isa [t] (== (get this :tpid) t))
+
+  (suspend [] (assoc! this :active? #f))
+  (restart [] (assoc! this :active? #t))
+
+  (constructor [e] (assoc! this
+                          :active? #t
+                          :engine e)))
 
 
 
