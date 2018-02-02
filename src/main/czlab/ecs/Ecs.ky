@@ -1,117 +1,102 @@
+;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
 
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.core.ecs
+  czlab.elmo.ecs.Ecs
 
   (:require ["kirby"
-             :as ky :refer []]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype Poolable []
-  (constructor [] (.yield! this))
-  (take! [] (assign! this :status #t))
-  (yield! [] (assign! this :status #f)))
+             :as K :refer [opt?? conj! MAX-INT]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype FPool []
-  (constructor [ctor batch]
-    (assign! this :objs [] :ctor ctor :batch batch))
-  (preset
-    [f cnt]
-    (dotimes [n cnt]
-      (if-some [r (f)]
-        (conj! this.objs r)))
-    (assign! this :batch cnt :ctor f) nil)
 
-  (take [] (when-some [r (.get this)] (.take! r) r))
-  (find [cb] (find cb this.objs))
-  (getAt [pos] (nth this.objs pos))
-  (size [] (n# this.objs))
+  (constructor [name ctor batch]
+    (assign! this :name name :objs [] :ctor ctor :batch batch))
+
+  (preset []
+    (dotimes [n this.batch]
+      (if-some [r (this.ctor)]
+        (conj! this.objs r))) nil)
+
   (get []
-    (var obj (.find this #(not (.-status %))))
-    (when (and (nichts? obj)
-               create?
-               this.ctor)
-      (.preset this this.ctor this.batch)
-      (set! obj (.get this #f)))
-    obj)
+    (or (.find this #(get % :poolable?))
+        (do (.preset this) (.get this))))
 
-  (checkin [c]
-    (if c (conj! this.objs c)) nil)
+  (take [] (when-some [r (.get this)]
+             (assign! r :poolable? #f) r))
 
-  (clearAll [] (std/resetVec! this.objs) nil)
+  (getAt [pos] (nth this.objs pos))
+  (foreach [f] (each f this.objs))
+  (find [cb] (find cb this.objs))
+  (some [f] (some f this.objs))
+
+  (size [] (n# this.objs))
+
+  (clearAll [] (do->nil (.reset this)
+                        (K/resetVec! this.objs)))
 
   (actives []
-    (filter #(.-status %) this.objs))
+    (filter #(not (get % :poolable?)) this.objs))
 
-  (foreach [f]
-    (each f this.objs))
-
-  (some [f]
-    (some f this.objs))
-
-  (reset
-    "Hibernate (status off) all objects in the pool" []
-    (each #(.yield! %) this.objs)))
+  (reset []
+    (do->nil (each #(assign! % :poolable? #t) this.objs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Component []
-  ""
-  (constructor [&[n]]
+  (constructor [&[e]]
     (assign! this
              :tpid ""
-             :node (opt?? n nil))))
+             :entity (opt?? e nil))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const PreUpdate 100)
-(const NetPlay 200)
-(const AI 300)
-(const Motion 400)
-(const Move 500)
-(const Logic 600)
-(const Collide 700)
-(const Resolve 800)
-(const Render 900)
-(const Error -1)
+(const SystemPriority {
+  :PreUpdate 100
+  :NetPlay 200
+  :AI 300
+  :Motion 400
+  :Move 500
+  :Logic 600
+  :Collide 700
+  :Resolve 800
+  :Render 900
+  :Error -1 })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;engine
 (def- lastId 0)
-(defn- generateEid "" []
+(defn- generateEid "" [pfx]
   (var rc (++ lastId))
-  (if-not (< rc Number/MAX_SAFE_INTEGER)
-    (raise! "too many entities"))
-  rc)
+  (if-not (< rc MAX-INT) (raise! "too many entities")) (str pfx rc))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Engine []
-  ""
+
   (constructor [&[cfg]]
     (assign! this
              :config (opt?? cfg nil)
              :updating? #f
-             :systems [] :nodes {} :types {}))
+             :systems [] :ents {} :types {}))
 
-  (unbind [co node]
+  (unbind [co ent]
     (var cid (if (inst? Component co) co.tpid co))
-    (when-some [m (get this.types cid)]
-      (dissoc! m (.-eid node)))
-    nil)
+    (when-some [m (get this.types cid)] (dissoc! m ent.eid)) nil)
 
-  (bind [co node]
-    (var eid (.-eid node)
-         cid (.-tpid co)
-         m (get this.types cid))
+  (bind [co ent]
+    (var m (get this.types co.tpid))
     (when (nichts? m)
       (set! m {})
-      (assoc! this.types cid m))
-    (assoc! m eid co) nil)
+      (assoc! this.types co.tpid m))
+    (assoc! m ent.eid co) nil)
 
-  (findNodes
-    "Find all nodes having these components"
-    [comType & comTypes]
-    (var pmin Number/MAX_SAFE_INTEGER
+  (find [comType & comTypes]
+    (var pmin MAX-INT
          missed? #f pm nil ccs [] ret [])
     (.unshift comTypes comType)
     ;;find shortest cache, doing an intersection
@@ -143,136 +128,83 @@
             (if (get c eid) (++ sum))))
         ;; if found in all caches...
         (if (= sum ccsz) ;; all matched
-          (if-some [e (get this.ents eid)]
-            (conj! ret e)))))
-    ret)
+          (if-some [e (get this.ents eid)] (conj! ret e))))) ret)
 
-  (getNodes "" [] (values this.ents))
+  (createEntity [name take?]
+    (var eid (generateEid "node:")
+         e (new Entity this name eid)) e)
 
-  (createNode "" [n take?]
-    (var eid (generateEid)
-         e (new Node this n eid))
-    (assoc! this.ents eid e)
-    (if take? (.take! e))
-    e)
+  (deleteNode [e] nil)
 
-  (deleteNode "" [e]
-    (asset (.ok? e) "Cannot delete twice!")
-    (.die! e)
-    (conj! this.garbo e)
-    (dissoc! this.ents (.eid e))
-    nil)
-
-  (deleteNodes "" []
-    (std/resetMap! this.ents)
-    (doHouseKeeping)
-    nil)
-
-  (addSystem "" [s]
+  (addSystem [s]
     (conj! this.systems s)
-    (sort System.compare this.systems)
-    s)
+    (sort System.compare this.systems) s)
 
-  (deleteSystem "" [s]
+  (removeSystem [s]
     (var p (.indexOf this.systems s))
     (when-not (neg? p)
       (.splice this.systems p 1)
-      (sort System.compare this.systems))
-    nil)
+      (sort System.compare this.systems)) nil)
 
-  (deleteSystems "" []
-    (std/resetVec! this.systems) nil)
+  (deleteSystems []
+    (K/resetVec! this.systems) nil)
 
-  (getSystem "" [s]
-    (_1 (filter #(== s (get % :tpid)) this.systems)))
+  (getSystem [s]
+    (find #(== s (get % :sid)) this.systems))
 
-  (update "" [time]
-    (assign! this :updating #t)
+  (update [time]
+    (assign! this :updating? #t)
     (var stop? #f)
-    (doseq [s this.systems
-            :when (.active? s)
-            :while (not stop?)]
-      (if-not (.update s time) (true! stop?)))
-    (doHouseKeeping)
-    (assign! this :updating #t)
-    nil)
+    (each (fn [s]
+            (when (and (not stop?)
+                       (get s :active?))
+              (if-not (.update s time) (true! stop?)))) this.systems)
+    (assign! this :updating? #f) nil)
 
-  (ignite "" [initNodes initSystems]
-    (initNodes)
-    (initSystems)
-    (doseq [s this.systems] (.preamble s)) nil)
+  (ignite [prologue]
+    (prologue)
+    (each #(.preamble %) this.systems) nil))
 
-  (doHouseKeeping "" [] ))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Entity []
 
-;;;;;;;;;;;;;;;;;
-; nodes
-(deftype Node [ecs/Poolable]
+  (constructor [engine name id]
+    (assign! this
+             :status #t
+             :name name
+             :comps {} :engine e :eid id))
 
-  (constructor "" [e n id]
-    (assoc! this
-            :status #t
-            :cobjs {}
-            :engine e
-            :dead? #f
-            :name n
-            :node-id id))
+  (checkin [co]
+    (assert (not (.has? this co.tpid)) "Cannot add co twice")
+    (.bind this.engine co this)
+    (assign! co :entity this)
+    (assoc! this.cobjs co.tpid co) co)
 
-  (die! "" [] (assoc! this :dead? #t))
-  (eid "" [] (get this :node-id))
-  (ok? "" [] (get this :status))
-
-  (checkin "" [c]
-    (var cid (get c :tpid))
-    (assert (not (.has this cid)) "Cannot add twice")
-    (.bind this.engine c this)
-    (.setNode c this)
-    (assoc! this.cobjs cid c)
-    nil)
-
-  (delete "" [comType]
-    (when-some [c (get this.cobjs comType)]
+  (checkout [comType]
+    (when-some [co (get this.cobjs comType)]
       (dissoc! this.cobjs comType)
-      (.unbind this.engine c this))
-    nil)
+      (.unbind this.engine co this) co))
 
-  (get "" [comType]
-    (get this.cobjs comType))
+  (get [comType] (get this.cobjs comType))
+  (getAll [] (values this.cobjs))
+  (has? [comType] (some? (get this.cobjs comType))))
 
-  (getAll "" [] (values this.cobjs))
-
-  (has? "" [comType]
-    (get this.cobjs comType)))
-
-;;;;;;;;;;;;;;;;
-; systems
-
-;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype System []
-  ""
-  (active? [] (get this :active?))
-  (getEngine [] this.engine)
-  (isa [t] (== (get this :tpid) t))
 
-  (suspend [] (assign! this :active? #f))
-  (restart [] (assign! this :active? #t))
+  (update [time] (.evalFunc this time))
 
   (compare ^:static [x y]
     (if (< x.priority y.priority) -1
       (if (> x.priority y.priority) 1 0)))
 
-  (constructor [e] (assign! this
-                            :priority 0
-                            :active? #t
-                            :engine e)))
+  (constructor [priority engine func]
+    (assign! this
+             :active? #t
+             :evalFunc func
+             :engine engine
+             :priority priority)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
-
-
-
-
-
-
 
