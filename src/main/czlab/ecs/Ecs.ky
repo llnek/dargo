@@ -1,3 +1,4 @@
+
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
@@ -7,9 +8,60 @@
              :as ky :refer []]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Poolable []
+  (constructor [] (.yield! this))
+  (take! [] (assign! this :status #t))
+  (yield! [] (assign! this :status #f)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype FPool []
+  (constructor [ctor batch]
+    (assign! this :objs [] :ctor ctor :batch batch))
+  (preset
+    [f cnt]
+    (dotimes [n cnt]
+      (if-some [r (f)]
+        (conj! this.objs r)))
+    (assign! this :batch cnt :ctor f) nil)
+
+  (take [] (when-some [r (.get this)] (.take! r) r))
+  (find [cb] (find cb this.objs))
+  (getAt [pos] (nth this.objs pos))
+  (size [] (n# this.objs))
+  (get []
+    (var obj (.find this #(not (.-status %))))
+    (when (and (nichts? obj)
+               create?
+               this.ctor)
+      (.preset this this.ctor this.batch)
+      (set! obj (.get this #f)))
+    obj)
+
+  (checkin [c]
+    (if c (conj! this.objs c)) nil)
+
+  (clearAll [] (std/resetVec! this.objs) nil)
+
+  (actives []
+    (filter #(.-status %) this.objs))
+
+  (foreach [f]
+    (each f this.objs))
+
+  (some [f]
+    (some f this.objs))
+
+  (reset
+    "Hibernate (status off) all objects in the pool" []
+    (each #(.yield! %) this.objs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Component []
   ""
-  (constructor [&[n]] (assign! this :node (opt?? n null))))
+  (constructor [&[n]]
+    (assign! this
+             :tpid ""
+             :node (opt?? n nil))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const PreUpdate 100)
@@ -32,33 +84,29 @@
     (raise! "too many entities"))
   rc)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Engine []
   ""
   (constructor [&[cfg]]
     (assign! this
-            :config (opt?? cfg nil)
-            :updating? #f
-            :systems []
-            :ents {}
-            :types {}
-            :garbo []))
+             :config (opt?? cfg nil)
+             :updating? #f
+             :systems [] :nodes {} :types {}))
 
-  (unbind [co e] (.unbind this (get co :tpid) e))
-
-  (unbind [cid e]
+  (unbind [co node]
+    (var cid (if (inst? Component co) co.tpid co))
     (when-some [m (get this.types cid)]
-      (dissoc! m (.eid e)))
+      (dissoc! m (.-eid node)))
     nil)
 
-  (bind [co e]
-    (var cid (get co :tpid)
-         eid (get e :eid)
+  (bind [co node]
+    (var eid (.-eid node)
+         cid (.-tpid co)
          m (get this.types cid))
-    (when (nichtcs? m)
-      (assoc! this.types cid m)
-      (set! m (get this.types cid)))
-    (assoc! m eid co)
-    nil)
+    (when (nichts? m)
+      (set! m {})
+      (assoc! this.types cid m))
+    (assoc! m eid co) nil)
 
   (findNodes
     "Find all nodes having these components"
@@ -122,18 +170,21 @@
 
   (addSystem "" [s]
     (conj! this.systems s)
-    (sort this.systems)
+    (sort System.compare this.systems)
     s)
 
   (deleteSystem "" [s]
     (var p (.indexOf this.systems s))
     (when-not (neg? p)
       (.splice this.systems p 1)
-      (sort this.systems))
+      (sort System.compare this.systems))
     nil)
 
   (deleteSystems "" []
     (std/resetVec! this.systems) nil)
+
+  (getSystem "" [s]
+    (_1 (filter #(== s (get % :tpid)) this.systems)))
 
   (update "" [time]
     (assign! this :updating #t)
@@ -195,32 +246,27 @@
 ;;;;;;;;;;;;;;;;
 ; systems
 
-#define __decl_sys_tpid(x) \
-  virtual const ecs::SystemType typeId() { return x; }
-
-#define __decl_sys_priority(x) \
-  virtual int priority() { return x; }
-
-#define __decl_sys_preamble() \
-  virtual void preamble();
-
-#define __decl_sys_update() \
-  virtual bool update(float);
-
 ;;;;;;;;;;;;;;;
 (deftype System []
-
+  ""
   (active? [] (get this :active?))
   (getEngine [] this.engine)
   (isa [t] (== (get this :tpid) t))
 
-  (suspend [] (assoc! this :active? #f))
-  (restart [] (assoc! this :active? #t))
+  (suspend [] (assign! this :active? #f))
+  (restart [] (assign! this :active? #t))
 
-  (constructor [e] (assoc! this
-                          :active? #t
-                          :engine e)))
+  (compare ^:static [x y]
+    (if (< x.priority y.priority) -1
+      (if (> x.priority y.priority) 1 0)))
 
+  (constructor [e] (assign! this
+                            :priority 0
+                            :active? #t
+                            :engine e)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
 
 
