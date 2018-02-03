@@ -12,10 +12,11 @@
   czlab.elmo.ecs.Ecs
 
   (:require ["kirby"
-             :as K :refer [opt?? conj! MAX-INT]]))
+             :as K
+             :refer [nichts? some? opt?? conj! MAX-INT]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype FPool []
+(deftype EntityPool []
 
   (constructor [name ctor batch]
     (assign! this :name name :objs [] :ctor ctor :batch batch))
@@ -82,6 +83,7 @@
     (assign! this
              :config (opt?? cfg nil)
              :updating? #f
+             :pools []
              :systems [] :ents {} :types {}))
 
   (unbind [co ent]
@@ -130,12 +132,6 @@
         (if (= sum ccsz) ;; all matched
           (if-some [e (get this.ents eid)] (conj! ret e))))) ret)
 
-  (createEntity [name take?]
-    (var eid (generateEid "node:")
-         e (new Entity this name eid)) e)
-
-  (deleteNode [e] nil)
-
   (addSystem [s]
     (conj! this.systems s)
     (sort System.compare this.systems) s)
@@ -168,26 +164,29 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Entity []
 
-  (constructor [engine name id]
+  (constructor [engine &[name]]
     (assign! this
+             :poolable? #t
              :status #t
-             :name name
-             :comps {} :engine e :eid id))
+             :name (opt?? name "")
+             :comps {}
+             :engine engine
+             :eid (generateEid "ent:")))
 
   (checkin [co]
     (assert (not (.has? this co.tpid)) "Cannot add co twice")
     (.bind this.engine co this)
     (assign! co :entity this)
-    (assoc! this.cobjs co.tpid co) co)
+    (assoc! this.comps co.tpid co) co)
 
   (checkout [comType]
-    (when-some [co (get this.cobjs comType)]
-      (dissoc! this.cobjs comType)
+    (when-some [co (get this.comps comType)]
+      (dissoc! this.comps comType)
       (.unbind this.engine co this) co))
 
-  (get [comType] (get this.cobjs comType))
-  (getAll [] (values this.cobjs))
-  (has? [comType] (some? (get this.cobjs comType))))
+  (get [comType] (get this.comps comType))
+  (getAll [] (values this.comps))
+  (has? [comType] (some? (get this.comps comType))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype System []
