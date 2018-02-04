@@ -27,23 +27,52 @@
     (assign! this :tpid :arm :length 10)))
 
 (deftype Person [ecs/Entity]
-  (constructor [e]
-    (super e)
+  (constructor [e] (super e))
+  (finz []
+    (.checkout this :arm :leg))
+  (init [&args]
     (.checkin this (new Arm this))
     (.checkin this (new Leg this))))
 
 (const- engine (new ecs/Engine ))
 
 (const- pool1 (new ecs/EntityPool
-                   "p1"
-                   #(new Person engine) 10))
+                   "p1" engine Person 6))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftest ecs-test
 
-  (ensure (zero? (.size pool1)) "pool,size=0")
-  (ensure (some? (.get pool1)) "pool,get")
-  (ensure (= 10 (.size pool1)) "pool,size>0"))
+  (ensure (zero? (.poolSize pool1)) "pool,size=0")
+  (ensure (let [x (.take pool1)
+                y (.take pool1)
+                z (.take pool1)]
+            (= 3 (.countUsed pool1))) "pool,used")
+  (ensure (let [x (.take pool1)
+                y (.take pool1)
+                z (.take pool1)]
+            (.drop pool1 z)
+            (= 5 (.countUsed pool1))) "pool,drop")
+  (ensure (= 6 (.poolSize pool1)) "pool,size>0")
+  (ensure (let [x (.take pool1)
+                y (.take pool1)
+                z (.take pool1)]
+            (.drop pool1 x)
+            (and (= 7 (.countUsed pool1))
+                 (= 12 (.poolSize pool1)))) "pool,grow")
+  (ensure (let [x (.take pool1)]
+            (and (.get x :leg)
+                 (= 2 (n# (.getAll x)))
+                 (.has? x :leg)
+                 (.has? x :arm))) "pool,entity methods")
+  (ensure (let [a (n# (.find engine :arm))
+                b (n# (.find engine :leg))
+                c (n# (.find engine :arm :leg))
+                d (n# (.find engine :arm-and-leg))]
+            (and (= a b)
+                 (= b c)
+                 (zero? d)
+                 (pos? a))) "engine,find"))
+
 
 
 (println (runtest ecs-test "test: ecs"))

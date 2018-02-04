@@ -13,73 +13,60 @@
 
   (:require ["kirby"
              :as K
-             :refer [nichts? some? opt?? conj! MAX-INT]]))
+             :refer [nichts? not-empty
+                     some? opt?? conj! MAX-INT]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype EntityPool []
 
-  (constructor [entity batch]
+  (constructor [name engine entity batch]
     (assign! this
-             :size 0 :marker 0
-             :objs []
+             :name name :size 0 :next 0
+             :engine engine
+             :inuse 0 :slots []
              :entity entity :batch batch))
 
   (take [&args]
-    (if (>= this.marker
-            this.poolSize) (.expandPool this))
-    (var obj (nth this.objs this.marker))
-    (assign! obj :index this.marker)
-    (assign! this :marker (++ this.marker))
-    (obj.constructor.apply obj args) obj)
+    ;no free slot? make more
+    (if (>= @@next @@size) (@@grow ))
+    ;take a free object, set it's slot, up the pool's free ptr
+    (var ent (nth @@slots @@next))
+    (assign! ent
+             :status #t
+             :slot @@next)
+    (assign! this
+             :next (+1 @@next)
+             :inuse (+1 @@inuse))
+    ;re-condition the object as new
+    (.apply @@engine.checkin @@engine (concat [ent] args)))
 
-  (expandPool []
-    (dotimes [x this.batch]
-      (conj! this.objs (new this.entity)))
-    (assign! this :size (+ this.batch this.size)))
+  (grow ^:private []
+    ;make more
+    (dotimes [x @@batch]
+      (conj! @@slots (new @@entity @@engine)))
+    ;up the size
+    (assign! this :size (+ @@batch @@size)))
 
-  (yield [ent]
-    (assign! this :marker (-- marker))
-    (var end (nth this.objs this.marker)
-         endIndex (get end :index))
-    (set-in! this.objs this.marker ent)
-    (set-in! this.objs ent.index end)
-    (assign! end :index ent.index)
-    (assign! ent :index endIndex)))
+  (countUsed [] @@inuse)
+  (poolSize [] @@size)
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype EntityPool []
-
-  (constructor [name ctor batch]
-    (assign! this :name name :objs [] :ctor ctor :batch batch))
-
-  (preset []
-    (dotimes [n this.batch]
-      (if-some [r (this.ctor)]
-        (conj! this.objs r))) nil)
-
-  (get []
-    (or (.find this #(get % :poolable?))
-        (do (.preset this) (.get this))))
-
-  (take [] (when-some [r (.get this)]
-             (assign! r :poolable? #f) r))
-
-  (getAt [pos] (nth this.objs pos))
-  (foreach [f] (each f this.objs))
-  (find [cb] (find cb this.objs))
-  (some [f] (some f this.objs))
-
-  (size [] (n# this.objs))
-
-  (clearAll [] (do->nil (.reset this)
-                        (K/resetVec! this.objs)))
-
-  (actives []
-    (filter #(not (get % :poolable?)) this.objs))
-
-  (reset []
-    (do->nil (each #(assign! % :poolable? #t) this.objs))))
+  (drop [ent]
+    ;jiggle the free slot to reuse the one just
+    ;dropped
+    (when (.-status ent)
+      (.checkout @@engine ent)
+      (assign! this
+               :next (-1 @@next)
+               :inuse (-1 @@inuse))
+      (var tail (nth @@slots @@next)
+           slot' (get tail :slot)
+           epos' (get ent :slot))
+      ;set the free ptr to the dropped
+      ;move the tail to old slot
+      (aset @@slots @@next ent epos' tail)
+      ;swap the 2 slots
+      (assign! tail :slot epos')
+      (assign! ent :slot slot' :status #f))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Component []
@@ -118,27 +105,34 @@
              :pools []
              :systems [] :ents {} :types {}))
 
+  (checkout [ent]
+    (.finz ent)
+    (dissoc! @@ents ent.eid) ent)
+
+  (checkin [ent & args]
+    (apply ent.init ent args)
+    (assoc! @@ents ent.eid ent) ent)
+
   (unbind [co ent]
     (var cid (if (inst? Component co) co.tpid co))
-    (when-some [m (get this.types cid)] (dissoc! m ent.eid)) nil)
+    (when-some [m (get @@types cid)] (dissoc! m ent.eid)) nil)
 
   (bind [co ent]
-    (var m (get this.types co.tpid))
+    (var m (get @@types co.tpid))
     (when (nichts? m)
       (set! m {})
-      (assoc! this.types co.tpid m))
+      (assoc! @@types co.tpid m))
     (assoc! m ent.eid co) nil)
 
-  (find [comType & comTypes]
+  (find [&comTypes]
     (var pmin MAX-INT
          missed? #f pm nil ccs [] ret [])
-    (.unshift comTypes comType)
     ;;find shortest cache, doing an intersection
     (var~ pmks ccsz eid cid c sum)
     (for [i 0 sz (n# comTypes)
           :while (< i sz) :recur (+1 i)]
       (set! cid (.@i comTypes)
-            c (get this.types cid))
+            c (get @@types cid))
       (cond
         (nichts? c) (do->break! (true! missed?))
         :else
@@ -162,23 +156,23 @@
             (if (get c eid) (++ sum))))
         ;; if found in all caches...
         (if (= sum ccsz) ;; all matched
-          (if-some [e (get this.ents eid)] (conj! ret e))))) ret)
+          (if-some [e (get @@ents eid)] (conj! ret e))))) ret)
 
   (addSystem [s]
-    (conj! this.systems s)
-    (sort System.compare this.systems) s)
+    (conj! @@systems s)
+    (sort System.compare @@systems) s)
 
   (removeSystem [s]
-    (var p (.indexOf this.systems s))
+    (var p (.indexOf @@systems s))
     (when-not (neg? p)
-      (.splice this.systems p 1)
-      (sort System.compare this.systems)) nil)
+      (.splice @@systems p 1)
+      (sort System.compare @@systems)) nil)
 
   (deleteSystems []
-    (K/resetVec! this.systems) nil)
+    (K/resetVec! @@systems) nil)
 
   (getSystem [s]
-    (find #(== s (get % :sid)) this.systems))
+    (find #(== s (get % :sid)) @@systems))
 
   (update [time]
     (assign! this :updating? #t)
@@ -186,39 +180,42 @@
     (each (fn [s]
             (when (and (not stop?)
                        (get s :active?))
-              (if-not (.update s time) (true! stop?)))) this.systems)
+              (if-not (.update s time) (true! stop?)))) @@systems)
     (assign! this :updating? #f) nil)
 
   (ignite [prologue]
     (prologue)
-    (each #(.preamble %) this.systems) nil))
+    (each #(.preamble %) @@systems) nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Entity []
 
   (constructor [engine &[name]]
     (assign! this
-             :poolable? #t
+             :slot -1
              :status #t
              :name (opt?? name "")
              :comps {}
              :engine engine
              :eid (generateEid "ent:")))
 
+  (init [&args] (raise! "you need to override this"))
+
   (checkin [co]
     (assert (not (.has? this co.tpid)) "Cannot add co twice")
-    (.bind this.engine co this)
+    (.bind @@engine co this)
     (assign! co :entity this)
-    (assoc! this.comps co.tpid co) co)
+    (assoc! @@comps co.tpid co) co)
 
-  (checkout [comType]
-    (when-some [co (get this.comps comType)]
-      (dissoc! this.comps comType)
-      (.unbind this.engine co this) co))
+  (checkout [&comTypes]
+    (doseq [c comTypes]
+      (when-some [co (get @@comps c)]
+        (dissoc! @@comps c)
+        (.unbind @@engine co this))) nil)
 
-  (get [comType] (get this.comps comType))
-  (getAll [] (values this.comps))
-  (has? [comType] (some? (get this.comps comType))))
+  (get [comType] (get @@comps comType))
+  (getAll [] (values @@comps))
+  (has? [comType] (some? (get @@comps comType))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype System []
@@ -238,4 +235,5 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+
 
