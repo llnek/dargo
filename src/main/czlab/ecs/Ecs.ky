@@ -18,6 +18,38 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype EntityPool []
 
+  (constructor [entity batch]
+    (assign! this
+             :size 0 :marker 0
+             :objs []
+             :entity entity :batch batch))
+
+  (take [&args]
+    (if (>= this.marker
+            this.poolSize) (.expandPool this))
+    (var obj (nth this.objs this.marker))
+    (assign! obj :index this.marker)
+    (assign! this :marker (++ this.marker))
+    (obj.constructor.apply obj args) obj)
+
+  (expandPool []
+    (dotimes [x this.batch]
+      (conj! this.objs (new this.entity)))
+    (assign! this :size (+ this.batch this.size)))
+
+  (yield [ent]
+    (assign! this :marker (-- marker))
+    (var end (nth this.objs this.marker)
+         endIndex (get end :index))
+    (set-in! this.objs this.marker ent)
+    (set-in! this.objs ent.index end)
+    (assign! end :index ent.index)
+    (assign! ent :index endIndex)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype EntityPool []
+
   (constructor [name ctor batch]
     (assign! this :name name :objs [] :ctor ctor :batch batch))
 
