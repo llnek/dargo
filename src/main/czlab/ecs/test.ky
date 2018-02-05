@@ -13,7 +13,7 @@
 
   (:require ["./Ecs" :as ecs]
             ["kirby"
-             :as K :refer [some? println runtest]]))
+             :as K :refer [conj! some? println runtest]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Leg [ecs/Component]
@@ -29,7 +29,7 @@
 (deftype Person [ecs/Entity]
   (constructor [e] (super e))
   (finz []
-    (.checkout this :arm :leg))
+    (.checkout this Arm Leg))
   (init [&args]
     (.checkin this (new Arm this))
     (.checkin this (new Leg this))))
@@ -38,6 +38,14 @@
 
 (const- pool1 (new ecs/EntityPool
                    "p1" engine Person 6))
+
+(def- TEMP-VAR nil)
+
+(defn- prologue' "" [engine] (set! TEMP-VAR []))
+(defn- sys1 "" [e t] (if (pos? t) (conj! TEMP-VAR 1)))
+(defn- sys2 "" [e t] (if (pos? t) (conj! TEMP-VAR 2)))
+(defn- sys3 "" [e t] (if (pos? t) (conj! TEMP-VAR 3)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftest ecs-test
@@ -60,18 +68,25 @@
             (and (= 7 (.countUsed pool1))
                  (= 12 (.poolSize pool1)))) "pool,grow")
   (ensure (let [x (.take pool1)]
-            (and (.get x :leg)
+            (and (.get x Leg)
                  (= 2 (n# (.getAll x)))
-                 (.has? x :leg)
-                 (.has? x :arm))) "pool,entity methods")
-  (ensure (let [a (n# (.find engine :arm))
-                b (n# (.find engine :leg))
-                c (n# (.find engine :arm :leg))
-                d (n# (.find engine :arm-and-leg))]
+                 (.has? x Leg)
+                 (.has? x Arm))) "pool,entity methods")
+  (ensure (let [a (n# (.find engine Arm))
+                b (n# (.find engine Leg))
+                c (n# (.find engine Arm Leg))
+                d (n# (.find engine ecs/Component))]
             (and (= a b)
                  (= b c)
                  (zero? d)
-                 (pos? a))) "engine,find"))
+                 (pos? a))) "engine,find")
+  (ensure (K/eq? [1 2 3]
+                 (let [x (.addSystem engine sys1)
+                       y (.addSystem engine sys2)
+                       z (.addSystem engine sys3)]
+                   (.ignite engine prologue')
+                   (.update engine 10)
+                   TEMP-VAR)) "engine,addSystem,ignite"))
 
 
 
@@ -79,6 +94,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+
 
 
 

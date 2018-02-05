@@ -13,8 +13,14 @@
 
   (:require ["kirby"
              :as K
-             :refer [nichts? not-empty
-                     some? opt?? conj! MAX-INT]]))
+             :refer [sort! nichts? not-empty
+                     objClass some? opt?? conj! MAX-INT]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- system-comparator
+  "sort low->high" [x y]
+  (if (< x.priority y.priority) -1
+    (if (> x.priority y.priority) 1 0)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype EntityPool []
@@ -113,15 +119,17 @@
     (apply ent.init ent args)
     (assoc! @@ents ent.eid ent) ent)
 
-  (unbind [co ent]
-    (var cid (if (inst? Component co) co.tpid co))
+  (unbind [cid ent]
+    {:pre [(some? cid)(some? ent)]}
     (when-some [m (get @@types cid)] (dissoc! m ent.eid)) nil)
 
   (bind [co ent]
-    (var m (get @@types co.tpid))
+    {:pre [(some? co)(some? ent)]}
+    (var z (objClass co)
+         m (get @@types z))
     (when (nichts? m)
       (set! m {})
-      (assoc! @@types co.tpid m))
+      (assoc! @@types z m))
     (assoc! m ent.eid co) nil)
 
   (find [&comTypes]
@@ -158,34 +166,25 @@
         (if (= sum ccsz) ;; all matched
           (if-some [e (get @@ents eid)] (conj! ret e))))) ret)
 
-  (addSystem [s]
+  (comment
+  (addSystem [priority func]
+    (var s (object :priority priority :cb func))
     (conj! @@systems s)
-    (sort System.compare @@systems) s)
+    (sort! system-comparator @@systems) s))
 
-  (removeSystem [s]
-    (var p (.indexOf @@systems s))
-    (when-not (neg? p)
-      (.splice @@systems p 1)
-      (sort System.compare @@systems)) nil)
-
-  (deleteSystems []
-    (K/resetVec! @@systems) nil)
-
-  (getSystem [s]
-    (find #(== s (get % :sid)) @@systems))
+  (addSystem [func]
+    (conj! @@systems func) func)
 
   (update [time]
     (assign! this :updating? #t)
-    (var stop? #f)
-    (each (fn [s]
-            (when (and (not stop?)
-                       (get s :active?))
-              (if-not (.update s time) (true! stop?)))) @@systems)
-    (assign! this :updating? #f) nil)
+    (try
+      (each #(%1 this time) @@systems)
+      (finally
+        (assign! this :updating? #f))) nil)
 
   (ignite [prologue]
-    (prologue)
-    (each #(.preamble %) @@systems) nil))
+    (prologue this)
+    (each #(%1 this -1) @@systems) nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Entity []
@@ -202,10 +201,12 @@
   (init [&args] (raise! "you need to override this"))
 
   (checkin [co]
-    (assert (not (.has? this co.tpid)) "Cannot add co twice")
+    {:pre [(some? co)]}
+    (var z (objClass co))
+    (assert (not (.has? this z)) "Cannot add co twice")
     (.bind @@engine co this)
     (assign! co :entity this)
-    (assoc! @@comps co.tpid co) co)
+    (assoc! @@comps z co) co)
 
   (checkout [&comTypes]
     (doseq [c comTypes]
@@ -216,22 +217,6 @@
   (get [comType] (get @@comps comType))
   (getAll [] (values @@comps))
   (has? [comType] (some? (get @@comps comType))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype System []
-
-  (update [time] (.evalFunc this time))
-
-  (compare ^:static [x y]
-    (if (< x.priority y.priority) -1
-      (if (> x.priority y.priority) 1 0)))
-
-  (constructor [priority engine func]
-    (assign! this
-             :active? #t
-             :evalFunc func
-             :engine engine
-             :priority priority)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
