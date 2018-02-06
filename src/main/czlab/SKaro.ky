@@ -1,0 +1,471 @@
+;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+
+  czlab.basal.core.Skaro
+
+  (:require ["kirby"
+             :as K :refer [str not-empty]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;const fnTest = /xyz/.test(function(){xyz;}) ? /\b_super\b/ : /[\D|\d]*/,
+;ZEROS= "00000000000000000000000000000000";  //32
+
+(const global (if (undef? window) (object) window))
+
+(if (undef? HTMLElement)
+  (assign! global :HTMLElement #(nil)))
+
+(if-not (undef? CryptoJS)
+  (assign! global :CryptoJS CryptoJS))
+
+(def~ CjsBase64 CjsUtf8)
+(when (some? global.CryptoJS)
+  (set! CjsBase64 global.CryptoJS.enc.Base64
+        CjsUtf8 global.CryptoJS.enc.Utf8))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn strPadRight "" [src len pad]
+  (-> (str src (.repeat pad (+1 len)))
+      (.slice 0 len)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn strPadLeft "" [src len pad]
+  (-> (str (.repeat pad (+1 len)) src)
+      (.slice (- len))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn ssplit
+  "Safe split string." [s sep]
+  (filter #(not-empty %) (.split (or s "") sep)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn now
+  "Get the current time." []
+  (or Date.now #(.getTime (new Date))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn capitalize
+  "Capitalize the first char of the string."
+  [s]
+  (str (.toUpperCase (ch@ s 0)) (.slice s 1)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn randRange
+  "Pick a random number between these 2 limits."
+  [from to]
+
+  (Math/floor (+ from
+                 (* (Math/random) (+1 (- to from))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn prettyNumber
+  "Maybe pad the number with zeroes."
+  [num digits]
+
+  (strPadLeft (numStr num) digits "0"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getWebSockProtocol
+  "Get the websocket transport protocol."
+  [secure?]
+  (if secure? "wss://" "ws://"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn nowMillis
+  "Get the current time in milliseconds."
+  []
+  (.getTime (new Date)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn boolify
+  "Cast the value to boolean." [obj] (if obj true false))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isSSL?
+  "Returns true if the web address is ssl."
+  []
+  (if (and (def? window)
+           (.-location window))
+    (>= (.indexOf window.location.protocol "https") 0)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn fmtUrl
+  "Format a URL based on the current web address host."
+  [scheme uri]
+  (if (and (def? window)
+           (.-location window))
+    (str scheme (.-host window.location) uri) ""))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isMobile?
+  "Test if the client is a mobile device."
+  [navigator]
+
+  (if (def? navigator)
+    (.test #/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i (.-userAgent navigator))))
+
+
+  /**
+   * Test if the client is Safari browser.
+   * @function
+   * @param {String} navigator
+   * @return {Boolean}
+   */
+  isSafari(navigator) {
+    if (!!navigator) {
+      return /Safari/.test(navigator.userAgent) && /Apple Computer/.test(navigator.vendor);
+    } else {
+      return false;
+    }
+  },
+
+  /**
+   * Prevent default propagation of this event.
+   * @function
+   * @param {Event} e
+   */
+  pde(e) {
+    if (!!e.preventDefault) {
+      e.preventDefault();
+    } else {
+      e.returnValue = false;
+    }
+  },
+
+  /**
+   * Randomly pick positive or negative.
+   * @function
+   * @return {Number}
+   */
+  randSign() {
+    if (this.rand(10) % 2 === 0) {
+      return -1;
+    } else {
+      return 1;
+    }
+  },
+
+  /**
+   * Randomly choose an item from this array.
+   * @function
+   * @param {Array} arr
+   * @return {Object}
+   */
+  randArrayItem(arr) {
+    return arr.length === 0 ?
+      null :
+      arr.length === 1 ?
+      arr[0] :
+      arr[ Math.floor(Math.random() * arr.length) ];
+  },
+
+  /**
+   * Randomly choose a percentage in step of 10.
+   * @function
+   * @return {Number}
+   */
+  randPercent() {
+    const pc = [0.1,0.9,0.3,0.7,0.6,0.5,0.4,0.8,0.2];
+    return this.randArrayItem(pc);
+  },
+
+  /**
+   * Pick a random number.
+   * @function
+   * @param {Number} limit
+   * @return {Number}
+   */
+  rand(limit) {
+    return Math.floor(Math.random() * limit);
+  },
+
+  /**
+   * Format input into HTTP Basic Authentication.
+   * @function
+   * @param {String} user
+   * @param {String} pwd
+   * @return {Array.String} - [header, data]
+   */
+  toBasicAuthHeader(user,pwd) {
+    const str='Basic ' + this.base64_encode(""+user+":"+pwd);
+    return [ 'Authorization', str ];
+  },
+
+  /**
+   * Convert string to utf-8 string.
+   * @function
+   * @param {String} s
+   * @return {String}
+   */
+  toUtf8(s) {
+    return CjsUtf8.stringify( CjsUtf8.parse(s));
+  },
+
+  /**
+   * Base64 encode the string.
+   * @function
+   * @param {String} s
+   * @return {String}
+   */
+  base64_encode: function(s) {
+    return CjsBase64.stringify( CjsUtf8.parse(s));
+  },
+
+  /**
+   * Base64 decode the string.
+   * @function
+   * @param {String} s
+   * @return {String}
+   */
+  base64_decode(s) {
+    return CjsUtf8.stringify( CjsBase64.parse(s));
+  },
+
+  /**
+   * Merge 2 objects together.
+   * @function
+   * @param {Object} original
+   * @param {Object} extended
+   * @return {Object} a new object
+   */
+  mergeEx(original,extended) {
+    return this.merge(this.merge({},original), extended);
+  },
+
+  /**
+   * Merge 2 objects in place.
+   * @function
+   * @param {Object} original
+   * @param {Object} extended
+   * @return {Object} the modified original object
+   */
+  merge(original, extended) {
+    let key, ext;
+    for(key in extended) {
+      ext = extended[key];
+      if ( ext instanceof xbox.ES6Claxx ||
+           ext instanceof HTMLElement ||
+           typeof(ext) !== 'object' ||
+           ext === null ||
+           !original[key]) {
+        original[key] = ext;
+      } else {
+        if (typeof(original[key]) !== 'object' ) {
+          original[key] = (ext instanceof Array) ? [] : {};
+        }
+        this.merge( original[key], ext );
+      }
+    }
+    return original;
+  },
+
+  /**
+   * Maybe remove this item from this array.
+   * @function
+   * @return {Array}
+   */
+  removeFromArray(arr, item) {
+    let index = arr.indexOf(item);
+    while (index !== -1) {
+      arr.splice(index,1);
+      index = arr.indexOf(item);
+    }
+    return arr;
+  },
+
+  /**
+   * Test if the input is *undefined*.
+   * @function
+   * @param {Object} obj
+   * @return {Boolean}
+   */
+  isundef(obj) {
+    return obj === void 0;
+  },
+
+  /**
+   * Test if input is null.
+   * @function
+   * @param {Object} obj
+   * @return {Boolean}
+   */
+  isnull(obj) {
+    return obj === null;
+  },
+
+  /**
+   * Test if input is a Number.
+   * @function
+   * @param {Object} obj
+   * @return {Boolean}
+   */
+  isnum(obj) {
+    return toString.call(obj) === '[object Number]';
+  },
+
+  /**
+   * Test if input is a Date.
+   * @function
+   * @param {Object} obj
+   * @return {Boolean}
+   */
+  isdate(obj) {
+    return toString.call(obj) === '[object Date]';
+  },
+
+  /**
+   * Test if input is a Function.
+   * @function
+   * @param {Object} obj
+   * @return {Boolean}
+   */
+  isfunc(obj) {
+    return toString.call(obj) === '[object Function]';
+  },
+
+  /**
+   * Test if input is a String.
+   * @function
+   * @param {Object} obj
+   * @return {Boolean}
+   */
+  isstr(obj) {
+    return toString.call(obj) === '[object String]';
+  },
+
+  /**
+   * Test if input is an Array.
+   * @function
+   * @param {Object} obj
+   * @return {Boolean}
+   */
+  isarr(obj) {
+    return !!obj && toString.call(obj) === '[object Array]';
+  },
+
+  /**
+   * Test if input is an Object.
+   * @function
+   * @param {Object} obj
+   * @return {Boolean}
+   */
+  isobj(obj) {
+    const type = typeof obj;
+    return type === 'function' || type === 'object' && !!obj;
+  },
+
+  /**
+   * Test if input has *length* attribute, and if so, is it
+   * empty.
+   * @function
+   * @param {Object} obj
+   * @return {Boolean}
+   */
+  isempty(obj) {
+    if (this.isobj(obj)) {
+      return Object.keys(obj).length === 0;
+    }
+
+    if (!!obj && typeof obj.length === 'number') {
+      return obj.length === 0;
+    }
+
+    return false;
+  },
+
+  /**
+   * Test if this object has this key.
+   * @function
+   * @param {Object} obj
+   * @param {Object} key
+   * @return {Boolean}
+   */
+  hasKey(obj, key) {
+    return !!obj && Object.prototype.hasOwnProperty.call(obj, key);
+  },
+
+  //since R doesn't handle object :(
+  /**
+   * Perform reduce on this object.
+   * @function
+   * @param {Function} f
+   * @param {Object} memo
+   * @param {Object} obj
+   * @return {Object}  memo
+   */
+  reduceObj(f, memo, obj) {
+    return R.reduce(function(sum, pair) {
+      return f(sum, pair[1], pair[0]);
+    },
+    memo,
+    R.toPairs(obj));
+  },
+
+  /**
+   * Iterate over this object [k,v] pairs and call f(v,k).
+   * @function
+   * @param {Function} f
+   * @param {Object} obj
+   * @return {Object} original object
+   */
+  eachObj(f, obj) {
+    R.forEach(function(pair) {
+      return f(pair[1], pair[0]);
+    },
+    R.toPairs(obj));
+    return obj;
+  },
+
+  /**
+   * Mixin this object.
+   * @function
+   * @param {Object} object
+   * @return {Object}
+   */
+  mixes(obj) {
+    return _mixer(obj);
+  },
+
+  /**
+   * @property {Logger} logger Short cut to logger
+   */
+  logger: DBG,
+
+  /**
+   * @property {Logger} loggr Short cut to logger
+   */
+  loggr: DBG,
+
+  /**
+   * @property {Ramda} ramda Short cut to Ramda
+   */
+  ramda: R,
+
+  /**
+   * @property {Ramda} R Short cut to Ramda
+   */
+  R: R,
+
+  /**
+   * @property {Claxx} Claxx ES6 Class
+   */
+  ES6Claxx: class ES6Claxx {}
+
+};
+
+xbox.merge(exports, xbox);
+/*@@
+return xbox;
+@@*/
+
+//////////////////////////////////////////////////////////////////////////////
+//EOF
+
