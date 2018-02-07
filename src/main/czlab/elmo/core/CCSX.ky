@@ -1,19 +1,26 @@
+;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
 
 (ns ^{:doc ""
       :author "Kenneth Leung"}
+
   czlab.elmo.core.CCSX
+
   (:require ["kirby"
-             :as ky :refer []]))
+             :as K :refer [conj!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn pop "" [] (.popScene cc/director))
+(defn popScene "" [] (.popScene cc/director))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn randomPos "" [node]
-  (var wb (visBox))
-  (.setPosition node
-                (randInt wb.right)
-                (randInt wb.top)))
+  (var {:keys [right top]} (visBox))
+  (.setPosition node (randInt right) (randInt top)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mkHMenu "" [items pad] (mkMenu items #f pad))
@@ -23,9 +30,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mkMenu
-  "menu-items should be same size"
+  "Menu-items should be same size"
   [items vert? pad]
-  (var menu (cc/Menu.create))
+  (var menu (.create cc/Menu))
   (each #(.addChild menu %) items)
   (if vert?
     (.alignItemsVerticallyWithPadding menu pad)
@@ -33,22 +40,22 @@
   menu)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn wrapMenu "" [item]
-  (doto (cc/Menu.create)
+(defn menuOneItem "" [item]
+  (doto (.create cc/Menu)
     (.addChild item)
     (.setPosition 0 0)
-    (.setAnchorPoint (anchorBL))))
+    (.setAnchorPoint *anchor-bl*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn isDesktop "" [] (raise! "TBD"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn splitHexColor "" [rgbstr]
-  (var f /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/
-       s /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/
+(defn- splitHexColor "" ^Array [rgbstr]
+  (var f #/^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/
+       s #/^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/
        len (n# rgbstr)
-       arr (or (.exec f color)
-               (.exec s color)))
+       arr (or (.exec f rgbstr)
+               (.exec s rgbstr)))
   (when arr
     (set! arr (slice arr 1))
     (map #(parseInt (str "0x" %))
@@ -722,7 +729,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
 
 
 
