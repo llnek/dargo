@@ -114,8 +114,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype XLayer [cc/Layer]
 
-  (constructor [] )
-
   (initEx [par & [zx]]
     (var ok? (.init this))
     (when ok?
@@ -187,152 +185,203 @@
              (< key (.size this._keys)))
       (aset this->_keys key #f)))
 
-void XLayer::onMouseDown(c::Event *event) {
-  if (_mouseDown) { return; }
-  auto e= (c::EventMouse*)event;
-  _mouseTarget=false;
-  _mouseDown=true;
-  if (e->getMouseButton() == _mouseBtn) {
-    _mouseTarget=onMouseStart(e->getLocationInView());
-  }
-}
+  (onMouseDown [evt]
+    (when-not this._mouseDown
+      (assign! this
+               :_mouseTarget #f
+               :_mouseDown #t)
+      (if (= (.getMouseButton evt) @@_mouseBtn)
+        (assign! this
+                 :_mouseTarget
+                 (.onMouseStart this (.getLocationInView evt))))))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void XLayer::onMouseUp(c::Event *event) {
-  auto e= (c::EventMouse*)event;
-  if (e->getMouseButton() == _mouseBtn) {
-    onMouseClick(e->getLocationInView());
-  }
-  _mouseTarget=false;
-  _mouseDown=false;
-}
+  (onMouseUp [evt]
+    (if (= (.getMouseButton evt) @@_mouseBtn)
+      (.onMouseClick this (.getLocationInView evt)))
+    (assign! this :_mouseTarget #f :_mouseDown #f))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-bool XLayer::onMouseStart(const CCT_PT &loc) {
-  return true;
-  //CCLOG("mouse Down!");
-}
+  (onMouseStart [loc] #t)
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void XLayer::onMouseClick(const CCT_PT &loc) {
-  //CCLOG("mouse Up!");
-}
+  (onMouseClick [loc] )
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void XLayer::onMouseMove(c::Event *event) {
-  auto e= (c::EventMouse*)event;
-  if (_mouseTarget &&
-      _mouseBtn == e->getMouseButton()) {
-    onMouseMotion(e->getLocationInView());
-  }
-}
+  (onMouseMove [evt]
+    (if (and @@_mouseTarget
+             (= @@_mouseBtn (.getMouseButton evt)))
+      (.onMouseMotion this (.getLocationInView evt))))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void XLayer::onMouseScroll(c::Event*) {
-}
+  (onMouseScroll [evt] )
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void XLayer::setMouseEnabled(bool enabled) {
-  if (_mouseEnabled != enabled) {
-    _mouseEnabled = enabled;
-    if (enabled) {
-      if (N_NIL(_mouseListener)) { return; }
-      auto n = c::EventListenerMouse::create();
-      _mouseListener = n;
-      n->onMouseScroll = CC_CALLBACK_1(XLayer::onMouseScroll, this);
-      n->onMouseMove = CC_CALLBACK_1(XLayer::onMouseMove, this);
-      n->onMouseUp = CC_CALLBACK_1(XLayer::onMouseUp, this);
-      n->onMouseDown = CC_CALLBACK_1(XLayer::onMouseDown, this);
-      _eventDispatcher->addEventListenerWithSceneGraphPriority(n, this);
-    }
-    else {
-      _eventDispatcher->removeEventListener(_mouseListener);
-      S__NIL(_mouseListener)
-    }
-  }
-}
+  (setMouseEnabled [enabled?]
+    (when-not (= @@_mouseEnabled enabled?)
+      (assign! this :_mouseEnabled enabled?)
+      (if enabled?
+        (when (nil? @@_mouseListener)
+          (var n (.create cc/EventListenerMouse))
+          (assign! this :_mouseListener n)
+          (set! n.onMouseScroll (onMouseScroll this))
+          (set! n.onMouseMove (onMouseMove this))
+          (set! n.onMouseUp (onMouseUp this))
+          (set! n.onMouseDown (onMouseDown this))
+          (.addEventListenerWithSceneGraphPriority @@eventDispatcher n this))
+        (do (.removeEventListener @@_eventDispatcher @@_mouseListener)
+            (set! this._mouseListener nil)))))
+
+  (constructor []
+    (assign! this
+             :tMode cc/Touch.DispatchMode.ONE_BY_ONE
+             ;;:tMode cc/Touch.DispatchMode.ALL_AT_ONCE
+             :mouseListener nil
+             :mouseBtn MOUSE_BUTTON_LEFT
+             :mouseEnabled? #f
+             :mouseTarget? #f
+             :mouseDown? #f
+             :keys (fillArray 256 #f)))
+
+  (isMouseEnabled? [] @@mouseEnabled)
+  (getIID [] 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const GMode (object :ONE 1 :TWO 2 :NET 3 :NICHTS -1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype GCX [SCTX]
+  (constructor [mode &[odin]]
+    (super)
+    (assign! this :mode mode :odin odin)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype GameScene [XScene]
+
+  (constructor [cfg &[physics?]]
+    (super physics?)
+    (assign! this :cfg cfg))
+
+  (getCurLevel []
+    (.getLevel @@cfg @@level))
+
+  (getLevelCfg []
+    (.getLevelCfg @@cfg @@level))
+
+  (getPool [key] (get @@pools key))
+
+  (createPool [key]
+    (assoc! @@pools key (new ecs/EntityPool )))
+
+  (resetPools [] (resetMap! @@pools))
+
+  (getMode [] (.-mode @@context))
+
+  (isOnline? [] (some? (.-odin @@context)))
+
+  (getEnclosureRect [] (cx/visRect))
+
+  (getEnclosureBox [] (cx/visBox))
+
+  (constructor []
+    (assign! this
+             :pools {}
+             :msgQ {}
+             :state 0
+             :level 1))
+
+  (play [] (set! @@state 911))
+  (isLive? [] (> @@state 0))
+  (stop! [] (set! @@state 0))
+
+  (getLevel [] @@level)
+
+  (sendMsg [topic] (sendMsgEx topic nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype GameLayer [XLayer]
+
+  (decoPost []
+    (when @@engine
+      (.ignite @@engine))
+    (.scheduleUpdate this))
+
+  (decoPre []
+    (cx/resumeAudio #t #t)
+    (.enableListeners this))
+
+  (surcease []
+    (.disableListeners this)
+    (cx/pauseAudio #t #t)
+    (.unscheduleUpdate this))
+
+  (update [dt]
+    (if (and (not (cx/isTransitioning?))
+             (.isLive MainGameScene)
+             (some? @@engine))
+      (.update @@engine dt)))
+
+  (constructor []
+    (assign! this :engine nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype XLives [cc/Node]
+
+  (reduce [ &[x]]
+    (set! x (opt?? x 1))
+    (while (> x 0)
+      (when (> @@icons.size 0)
+        ;;auto it= _icons.back(); it->removeFromParent(); _icons.pop_back();
+        nil)
+      (-= x 1)
+      (-= @@curLives 1)))
+
+  (reset []
+    (each #(.removeFromParent %) @@icons)
+    (resetVec! @@icons)
+    (set! @@curLives @@totalLives))
+
+  (resurrect []
+    (.reset this)
+    (.drawLives this))
+
+  (drawLives []
+    (var~ v x y)
+    (dotimes [n @@curLives]
+      (set! v (cx/createSprite @@frameId))
+      (.setScale v @@scale)
+      (when (zero? n)
+        (set! @@lifeSize (cx/scaleSize (CC_CSIZE v) @@scale)
+              y (- (.-y @@refPt) (HHZ @@lifeSize))
+              x (+ (.-x @@refPt) (HWZ @@lifeSize))))
+      (.setPosition v x y)
+      (addChild this v)
+      (conj! @@icons v)
+      (if (> @@dir 0)
+        (+= x (* 1.2 (.-width @@lifeSize)))
+        (-= x (* 1.2 (.-width @@lifeSize))))))
+
+  (initLives [frame lives x y & [scale d]]
+    (set! @@totalLives lives
+          @@frameId frame
+          @@curLives 0
+          @@dir (opt?? d 1)
+          @@scale (opt?? scale 1)
+          @@refPt (cc/p x y))
+    (.reset this)
+    (.drawLives this))
+
+  (constructor []
+    (assign! this
+             :icons []
+             :lifeSize (cc/size 0 0)
+             :refPt (cc/p 0 0)
+             :frameId ""
+             :scale 1
+             :dir 1
+             :totalLives 0
+             :curLives 0))
+
+  (isDead? [] (<= @@curLives 0))
+  (getLives [] @@curLives))
 
 
-NS_END
-
-
-
-protected:
-
-  //c::Touch::DispatchMode _tMode= c::Touch::DispatchMode::ALL_AT_ONCE;
-  c::Touch::DispatchMode _tMode= c::Touch::DispatchMode::ONE_BY_ONE;
-  __decl_ptr(c::EventListenerMouse ,_mouseListener)
-  __decl_mv(int, _mouseBtn, MOUSE_BUTTON_LEFT)
-  __decl_bf(_mouseEnabled)
-  __decl_bf(_mouseTarget)
-  __decl_bf(_mouseDown)
-
-  __decl_arr(bool, 256, _keys)
-  __decl_nocpyass(XLayer)
-
-  virtual void onTouchesBegan(const VecTouches&, c::Event*);
-  virtual void onTouchesMoved(const VecTouches&, c::Event*);
-  virtual void onTouchesEnded(const VecTouches&, c::Event*);
-
-  virtual void onKeyReleased(KEYCODE k, c::Event*);
-  virtual void onKeyPressed(KEYCODE k, c::Event*);
-
-  virtual void onMouseScroll(c::Event*);
-  virtual void onMouseDown(c::Event*);
-  virtual void onMouseUp(c::Event*);
-  virtual void onMouseMove(c::Event*);
-
-  virtual bool onTouchStart(const VecTouches&);
-  virtual void onTouchMotion(const VecTouches&);
-  virtual void onTouchEnd(const VecTouches&);
-
-  virtual bool onTouchStart(c::Touch*);
-  virtual void onTouchMotion(c::Touch*);
-  virtual void onTouchEnd(c::Touch*);
-
-  virtual void onMouseMotion(const CCT_PT&);
-  virtual bool onMouseStart(const CCT_PT&);
-  virtual void onMouseClick(const CCT_PT&);
-
-  void disableListeners();
-  void enableListeners();
-
-  virtual void decoPost() {}
-  virtual void decoPre() {}
-
-public:
-
-  bool isMouseEnabled() { return _mouseEnabled; }
-  void setMouseEnabled(bool);
-  bool keyPoll(KEYCODE);
-
-  virtual bool initEx(XScene*, int zx = 0);
-  virtual void decoUI() =0;
-  virtual void onInited() {}
-
-  XScene* getSceneX();
-
-  // tag value
-  virtual int getIID() { return 1; }
-  virtual ~XLayer() {}
-  XLayer();
-
-};
-
-
-
-
-NS_END
-
-
-
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
 
 

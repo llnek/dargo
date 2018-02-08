@@ -1,0 +1,425 @@
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftype XConfig []
+
+  (constructor []
+    (assign! this
+             :frags {:atlases {}
+                     :levels {}
+                     :fonts {}
+                     :tiles {}
+                     :images {}
+                     :sounds {}
+                     :csts {} })
+    (.loadL10NStrings this)
+    (.addLevel "1")
+    (.setCsts))
+
+  (loadL10NStrings []
+    (var b (cx/readPlist "i18n/base_strings.plist")
+         d (cx/readPlist "i18n/strings.plist"))
+    (set! @@l10n nil))
+
+  (getL10NStr [key pms] )
+
+  (getL10NStr [key]
+    (var lang (.getCurrentLanguageCode  cc/Application.getInstance)
+         d (get @@l10n lang))
+    (or (get d key) ""))
+
+  (getBtnPadding [] (get-in @@frags [:csts :btn-padding]))
+
+  (setCsts []
+    (var f  (get @@frags :csts))
+    (assoc! f
+            :scene-delay 0.35
+            :btn-padding 10
+            :show-fps #f
+            :fps 60
+            :s-off 4.0
+            :tile 8.0
+            :p2-color "O"
+            :p1-color "X"
+            :cv-o 79
+            :cv-x 88
+            :netp 9091
+            :bot 9901
+            :human 1099))
+
+  (toggleAudio [b?]
+    (set! @@audioState b?)
+    (if-not b?
+      (do (.setMusicVolume this 0)
+          (.setVolume this 0))
+      (do (.setMusicVolume this @@lastMusicVol)
+          (.setVolume this @@lastSfxVol))))
+
+  (hasAudio? [] @@audioState)
+
+  (setMusicVolume [v]
+    (set! @@lastMusicVol (.getMusicVolume this))
+    (.setBackgroundMusicVolume AUDIO v))
+
+  (setVolume [v]
+    (set! @@lastSfxVol (.getVolume this))
+    (.setEffectsVolume AUDIO v))
+
+  (getMusicVolume []
+    (.getBackgroundMusicVolume AUDIO))
+
+  (getEffectsVolume() []
+    (.getEffectsVolume AUDIO))
+
+  (getCst [key] (get-in @@frags [:csts key]))
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const filepath XConfig::getAtlas(const sstr &key) {
+  return getXXX(getFragment(ATLASES), key);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const filepath XConfig::getFont(const sstr &key) {
+  return getXXX(getFragment(FONTS), key);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const filepath XConfig::getTile(const sstr &key) {
+  return getXXX(getFragment(TILES), key);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const c::Color3B XConfig::getColor(const sstr &key) {
+  return cx::colorRGB(getXXX(getFragment(COLORS), key));
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const sstr XConfig::getColorStr(const sstr &key) {
+  return getXXX(getFragment(COLORS), key);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const filepath XConfig::getImage(const sstr &key) {
+  return getXXX(getFragment(IMAGES), key);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const filepath XConfig::getMusic(const sstr &key) {
+  return getXXX(getFragment(MUSIC), key);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const filepath XConfig::getEffect(const sstr &key) {
+  return getXXX(getFragment(EFX), key);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+c::Dictionary* XConfig::getLevel(const sstr &n) {
+  auto d= getFragment(LEVELS);
+  return SCAST(c::Dictionary*,  d->objectForKey(n));
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+f::JsonObj* XConfig::getLevelCfg(const sstr &n) {
+  auto r= getLevel(n);
+  if (N_NIL(r)) {
+    return SCAST(f::JsonObj*, r->objectForKey(CFG));
+  } else {
+    return CC_NIL;
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+c::Dictionary* XConfig::addLevel(const sstr &level) {
+
+  auto d2= CC_DICT();
+
+  d2->setObject(f::JsonObj::create(), CFG);
+  d2->setObject(CC_DICT(), IMAGES);
+  d2->setObject(CC_DICT(), TILES);
+
+  getFragment(LEVELS)->setObject(d2, level);
+  return d2;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+c::Dictionary* XConfig::getFragment(const sstr &key) {
+  auto obj = _frags->objectForKey(key);
+  return N_NIL(obj) ? SCAST(c::Dictionary*, obj) : CC_NIL;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XConfig::addAtlas(const sstr &key, c::Ref *ref) {
+  addXXX(ATLASES, key, ref);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XConfig::addFont(const sstr &key, c::Ref *ref) {
+  addXXX(FONTS, key, ref);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XConfig::addTile(const sstr &key, c::Ref *ref) {
+  addXXX(TILES, key, ref);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XConfig::addImage(const sstr &key, c::Ref *ref) {
+  addXXX(IMAGES, key, ref);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XConfig::addEffect(const sstr &key, c::Ref *ref) {
+  addXXX(EFX, key, ref);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XConfig::addMusic(const sstr &key, c::Ref *ref) {
+  addXXX(MUSIC, key, ref);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XConfig::addCst(const sstr &key, c::Ref *ref) {
+  addXXX(CSTS, key, ref);
+}
+
+//////////////////////////////////////////////////////////////////////////
+//
+void XConfig::resetCst(const sstr &key, c::Ref *ref) {
+  addXXX(CSTS, key, ref);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XConfig::addColor(const sstr &key, c::Ref *ref) {
+  addXXX(COLORS, key, ref);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XConfig::addXXX(const sstr &frag, const sstr &key, c::Ref *ref) {
+  auto d = getFragment(frag);
+  d->setObject(ref, key);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const s_vec<filepath> XConfig::getEffectFiles() {
+  NS_USING(cocos2d)
+  auto d= getFragment(MUSIC);
+  s_vec<filepath> rc;
+
+  DictElement *em = CC_NIL;
+  CCDICT_FOREACH(d, em) {
+    rc.push_back( static_cast<String*>(em->getObject())->getCString());
+  }
+  return rc;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XConfig::setFrameSize(const CCT_SZ &sz) {
+  _scale= CC_DTOR()->getContentScaleFactor();
+  _frame=sz;
+  handleResolution(sz);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+float XConfig::scaleBmfont(not_null<c::Node*> n, float sz) {
+  auto pt= scaleFont(sz);
+  n->setScale(pt);
+  return pt;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const CCT_SZ XConfig::fit(const CCT_SZ &z) {
+  return CCT_SZ(z.width * _scale,
+                z.height * _scale);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+const s_vec<filepath> XConfig::getMusicFiles() {
+  NS_USING(cocos2d)
+  auto d= getFragment(EFX);
+  s_vec<filepath> rc;
+
+  DictElement *em = CC_NIL;
+  CCDICT_FOREACH(d, em) {
+    rc.push_back( static_cast<String*>(em->getObject())->getCString());
+  }
+  return rc;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XConfig::cacheSprites(const sstr &plist) {
+  auto fp= getAtlas(plist);
+  CC_SCAC()->addSpriteFramesWithFile( fp);
+  CCLOG("loaded sprite-sheet: %s", fp.c_str());
+}
+
+
+
+NS_END
+
+
+
+
+protected:
+
+  void addXXX(const sstr &frag, const sstr &key, c::Ref*);
+  c::Dictionary* getFragment(const sstr&);
+
+  void addAtlas(const sstr& , c::Ref*);
+  void addFont(const sstr& , c::Ref*);
+  void addTile(const sstr& , c::Ref*);
+  void addImage(const sstr& , c::Ref*);
+  void addEffect(const sstr& , c::Ref*);
+  void addMusic(const sstr& , c::Ref*);
+  void addCst(const sstr& , c::Ref*);
+  void addColor(const sstr& , c::Ref*);
+
+  __decl_ptr(c::Dictionary, _frags)
+  __decl_ptr(c::Dictionary, _l10n)
+  __decl_nocpyass(XConfig)
+
+  __decl_md(c::ApplicationProtocol::Platform, _platform)
+  __decl_mv(float, _lastMusicVol,0.5)
+  __decl_mv(float, _lastSfxVol, 0.5)
+  __decl_mv(float, _scale, 1)
+  __decl_md(sstr, _room_id)
+  __decl_md(sstr, _app_id)
+  __decl_md(sstr, _game_id)
+  __decl_bt(_audioState)
+  __decl_md(CCT_SZ, _frame)
+
+  void cacheSprites(const sstr &plist);
+  void loadL10NStrings();
+  void setCsts();
+
+  sstr ATLASES;
+  sstr LEVELS;
+  sstr FONTS;
+  sstr TILES;
+  sstr IMAGES;
+  sstr COLORS;
+  sstr MUSIC;
+  sstr CSTS;
+  sstr EFX;
+  sstr CFG;
+
+public:
+
+  virtual float scaleBmfont(not_null<c::Node*>,float);
+  virtual void handleResolution(const CCT_SZ& ) {}
+  virtual void setFrameSize(const CCT_SZ&);
+
+  virtual float scaleFont(float pt) = 0;
+
+  virtual float scaleTTF(float pt) {
+    return _scale * pt; }
+
+  virtual float getScale() { return _scale; }
+  virtual void runOnce() {}
+
+  virtual ResolutionPolicy policy() = 0;
+  virtual const CCT_SZ gameSize() = 0;
+
+  virtual const sstr getWSUrl() {
+    return "";
+  }
+
+  virtual c::Scene* prelude() = 0;
+
+  virtual bool isPortrait() { return gameSize().height > gameSize().width; }
+  virtual const CCT_SZ fit(const CCT_SZ &z);
+
+  __decl_gsms(c::ApplicationProtocol::Platform, _platform, Platform)
+  __decl_gsms(sstr, _room_id, RoomId)
+  __decl_getr(sstr, _app_id, AppId)
+  __decl_getr(sstr, _game_id, GameId)
+
+  const filepath getAtlas(const sstr& );
+  const filepath getFont(const sstr& );
+  const filepath getTile(const sstr& );
+  const filepath getImage(const sstr& );
+
+  const filepath getEffect(const sstr& );
+  const filepath getMusic(const sstr& );
+
+  const sstr getL10NStr(const sstr& , const s_vec<sstr>& );
+  const sstr getL10NStr(const sstr& );
+
+  const c::Color3B getColor(const sstr&);
+  const sstr getColorStr(const sstr& );
+
+  void resetCst(const sstr&, c::Ref*);
+  c::Ref* getCst(const sstr& );
+
+  virtual float fit(not_null<c::Node*> n) {
+    n->setScale(_scale); return _scale;}
+
+  int getBtnPadding();
+
+  void toggleAudio(bool s);
+  bool hasAudio();
+
+  void setMusicVolume(float);
+  void setVolume(float);
+
+  float getMusicVolume();
+  float getVolume();
+
+  c::Dictionary* getLevel(const sstr& );
+  c::Dictionary* addLevel(const sstr& );
+  f::JsonObj* getLevelCfg(const sstr& );
+
+  const s_vec<filepath> getEffectFiles();
+  const s_vec<filepath> getMusicFiles();
+
+  virtual ~XConfig();
+  XConfig();
+
+  static XConfig* self();
+  static void bind(not_null<XConfig*>);
+};
+
+//////////////////////////////////////////////////////////////////////////////
+//
+template<typename T> T* cstVal(const sstr &key) {
+  auto r= fusii::XConfig::self()->getCst(key);
+  if (N_NIL(r)) {
+    return static_cast<T*>( r);
+  } else {
+    return CC_NIL;
+  }
+}
+
+
+NS_END
+
+
+
+
