@@ -1,0 +1,338 @@
+;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+
+  czlab.elmo.x2d.XNode
+
+  (:require ["kirby"
+             :as K :refer []]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;#define __decl_get_iid(x) virtual int getIID() { return x; }
+;#define __decl_update() virtual void update(float);
+;#define __decl_deco_ui() virtual void decoUI();
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype SCTX []
+  (constructor [] (assign! this :count 1)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addAudioIcons
+  "Add a toggle for sound on & off."
+  [audios anchor pos & [selector target]]
+  (var a (if selector
+           (new cc/MenuItemToggle (_1 audios) (_2 audios) selector target)
+           (new cc/MenuItemToggle (_1 audios) (_2 audios))))
+  (.setSelectedIndex a 0)
+  (.setAnchorPoint a anchor)
+  (doto (new cc/Menu a) (.setPosition pos)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addAtlas "" [co atlasName & [zx]]
+  (var a (cx/createSpriteBatch name))
+  (if-not (number? zx)
+    (.addChild co a)
+    (.addChild co a zx))
+  (update-in! co [:atlases] assoc! atlasName a) a)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addAtlasFrame "" [co atlasName frame pos & [zx tag]]
+  (var tt (cx/createSprite frame))
+  (set! zx (opt?? zx 0))
+  (set! tag (opt?? tag 0))
+  (.setPosition tt pos)
+  (addAtlasItem co atlasName tt zx tag))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addFrame "" [co frame pos & [zx tag]]
+  (var tt (cx/createSprite frame))
+  (set! zx (opt?? zx 0))
+  (set! tag (opt?? tag 0))
+  (.setPosition tt pos)
+  (addItem co tt zx tag))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addAtlasItem "" [co atlas item & [zx tag]]
+  (var p (get co :atlases))
+  (if (sprite? item)
+    (.setBatchNode item p))
+  (addItem p item zx tag))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addItem "" [co item & [zx tag]]
+  (set! zx (opt?? zx 0))
+  (set! tag (opt?? tag 0))
+  (.addChild co item zx tag))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn centerImage "" [co image & [zx tag]]
+  (var s (new cc/Sprite image))
+  (set! zx (opt?? zx 0))
+  (set! tag (opt?? tag 0))
+  (.setPosition s (cx/centerPoint))
+  (.addChild co s zx tag)
+  s)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn removeAtlasAll "" [co atlasName]
+  (if-some [p (get-in co [:atlases atlasName])] (.removeAllChildren p)) nil)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn removeAll "" [co] (.removeAllChildren co))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn removeItem "" [co item]
+  (if item (.removeFromParent item)) nil)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype XScene [cc/Scene]
+
+  (constructor [ &[physics?] ]
+    (super)
+    (assign! this
+             :usePhysics? (if physics? #t #f)))
+
+  (addLayer [y & [zx]]
+    (addChild this y zx (.getIID y)))
+
+  (getLayer [tag]
+    (.getChildByTag this tag))
+
+  (init []
+    (var ok? (if (get this :usePhysics?)
+               (.initWithPhysics this) (super)))
+    (if ok? (.decoUI this))
+    ok?))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype XLayer [cc/Layer]
+
+  (constructor [] )
+
+  (initEx [par & [zx]]
+    (var ok? (.init this))
+    (when ok?
+      (.addLayer par this zx)
+      (.decoPre this)
+      (.decoUI this)
+      (.decoPost this)) ok?)
+
+  (keyPoll [key]
+    (if (and (>= key 0)
+             (< key 256)) (nth this._keys key) #f))
+  (disableListeners []
+    (try (.setKeyboardEnabled this false) (catch e nil))
+    (try (.setMouseEnabled this false) (catch  e nil))
+    (try (.setTouchEnabled this false) (catch e nil))
+    (.fill this._keys false))
+
+  (enableListeners []
+    (.disableListeners this)
+    (try (if (cx/isDesktop?)
+           (.setKeyboardEnabled this true))
+         (catch e
+          (cc.log "failed to init-keys")))
+    (try (if (cx/isDesktop?) (.setMouseEnabled this true))
+         (catch e
+           (cc.log "failed to init-mouse")))
+    (try (if-not (cx/isDesktop?) (.setTouchEnabled this true))
+         (catch e
+           (cc.log "failed to init-touch"))))
+
+  (onTouchesBegan [ts evt]
+    (if (= this._tMode
+           cc/Touch.DispatchMode.ALL_AT_ONCE)
+      (.onTouchStart this ts)
+      (.onTouchStart this (_1 ts))))
+
+  (onTouchesMoved [ts evt]
+    (if (= this._tMode cc/Touch.DispatchMode.ALL_AT_ONCE)
+      (.onTouchMotion this ts)
+      (.onTouchMotion this (_1 ts))))
+
+  (onTouchesEnded [ts evt]
+    (if (= this._tMode cc/Touch.DispatchMode.ALL_AT_ONCE)
+      (.onTouchEnd this ts)
+      (.onTouchEnd this (_1 ts))))
+
+  (onMouseMotion [loc] )
+
+  (onTouchStart [ts]
+    (raise! "you need to implement this!"))
+
+  (onTouchStart [tap] #t)
+
+  (onTouchEnd [ts]
+    (raise! "you need to implement this!"))
+
+  (onTouchEnd [tap] )
+
+  (onTouchMotion [ts]
+    (raise! "you need to implement this!"))
+
+  (onKeyPressed [key evt]
+    (if (and (>= key 0)
+             (< key (.size this._keys)))
+      (aset this->_keys key #t)))
+
+  (onKeyReleased [key evt]
+    (if (and (>= key 0)
+             (< key (.size this._keys)))
+      (aset this->_keys key #f)))
+
+void XLayer::onMouseDown(c::Event *event) {
+  if (_mouseDown) { return; }
+  auto e= (c::EventMouse*)event;
+  _mouseTarget=false;
+  _mouseDown=true;
+  if (e->getMouseButton() == _mouseBtn) {
+    _mouseTarget=onMouseStart(e->getLocationInView());
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XLayer::onMouseUp(c::Event *event) {
+  auto e= (c::EventMouse*)event;
+  if (e->getMouseButton() == _mouseBtn) {
+    onMouseClick(e->getLocationInView());
+  }
+  _mouseTarget=false;
+  _mouseDown=false;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+bool XLayer::onMouseStart(const CCT_PT &loc) {
+  return true;
+  //CCLOG("mouse Down!");
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XLayer::onMouseClick(const CCT_PT &loc) {
+  //CCLOG("mouse Up!");
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XLayer::onMouseMove(c::Event *event) {
+  auto e= (c::EventMouse*)event;
+  if (_mouseTarget &&
+      _mouseBtn == e->getMouseButton()) {
+    onMouseMotion(e->getLocationInView());
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XLayer::onMouseScroll(c::Event*) {
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+void XLayer::setMouseEnabled(bool enabled) {
+  if (_mouseEnabled != enabled) {
+    _mouseEnabled = enabled;
+    if (enabled) {
+      if (N_NIL(_mouseListener)) { return; }
+      auto n = c::EventListenerMouse::create();
+      _mouseListener = n;
+      n->onMouseScroll = CC_CALLBACK_1(XLayer::onMouseScroll, this);
+      n->onMouseMove = CC_CALLBACK_1(XLayer::onMouseMove, this);
+      n->onMouseUp = CC_CALLBACK_1(XLayer::onMouseUp, this);
+      n->onMouseDown = CC_CALLBACK_1(XLayer::onMouseDown, this);
+      _eventDispatcher->addEventListenerWithSceneGraphPriority(n, this);
+    }
+    else {
+      _eventDispatcher->removeEventListener(_mouseListener);
+      S__NIL(_mouseListener)
+    }
+  }
+}
+
+
+NS_END
+
+
+
+protected:
+
+  //c::Touch::DispatchMode _tMode= c::Touch::DispatchMode::ALL_AT_ONCE;
+  c::Touch::DispatchMode _tMode= c::Touch::DispatchMode::ONE_BY_ONE;
+  __decl_ptr(c::EventListenerMouse ,_mouseListener)
+  __decl_mv(int, _mouseBtn, MOUSE_BUTTON_LEFT)
+  __decl_bf(_mouseEnabled)
+  __decl_bf(_mouseTarget)
+  __decl_bf(_mouseDown)
+
+  __decl_arr(bool, 256, _keys)
+  __decl_nocpyass(XLayer)
+
+  virtual void onTouchesBegan(const VecTouches&, c::Event*);
+  virtual void onTouchesMoved(const VecTouches&, c::Event*);
+  virtual void onTouchesEnded(const VecTouches&, c::Event*);
+
+  virtual void onKeyReleased(KEYCODE k, c::Event*);
+  virtual void onKeyPressed(KEYCODE k, c::Event*);
+
+  virtual void onMouseScroll(c::Event*);
+  virtual void onMouseDown(c::Event*);
+  virtual void onMouseUp(c::Event*);
+  virtual void onMouseMove(c::Event*);
+
+  virtual bool onTouchStart(const VecTouches&);
+  virtual void onTouchMotion(const VecTouches&);
+  virtual void onTouchEnd(const VecTouches&);
+
+  virtual bool onTouchStart(c::Touch*);
+  virtual void onTouchMotion(c::Touch*);
+  virtual void onTouchEnd(c::Touch*);
+
+  virtual void onMouseMotion(const CCT_PT&);
+  virtual bool onMouseStart(const CCT_PT&);
+  virtual void onMouseClick(const CCT_PT&);
+
+  void disableListeners();
+  void enableListeners();
+
+  virtual void decoPost() {}
+  virtual void decoPre() {}
+
+public:
+
+  bool isMouseEnabled() { return _mouseEnabled; }
+  void setMouseEnabled(bool);
+  bool keyPoll(KEYCODE);
+
+  virtual bool initEx(XScene*, int zx = 0);
+  virtual void decoUI() =0;
+  virtual void onInited() {}
+
+  XScene* getSceneX();
+
+  // tag value
+  virtual int getIID() { return 1; }
+  virtual ~XLayer() {}
+  XLayer();
+
+};
+
+
+
+
+NS_END
+
+
+
+
+
+
+

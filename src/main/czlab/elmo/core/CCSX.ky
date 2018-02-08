@@ -63,40 +63,35 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn colorRGB "" [rgbstr]
-  (var [r g b] (splitHexColor rgbstr)) (cc/color r g b))
+  ;(var [r g b] (splitHexColor rgbstr)) (cc/color r g b))
+  (cc/hexToColor rgbstr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sfxMusic "" [music repeat?]
-  (var url (xcfg/getMusic music))
-  (try
-    (.playMusic cc.audioEngine url repeat?)
-    (catch e
-      (cc.warn (cc/formatStr
-                 "Failed to play music: %s" music)))))
+  (try (.playMusic cc/audioEngine music repeat?)
+       (catch e (cc/warn (cc/formatStr
+                           "Failed to play music: %s" music)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sfxPlay "" [sound]
-  (var url (xcfg/getEffect sound))
-  (try
-    (.playEffect cc.audioEngine url)
-    (catch e
-      (cc.warn (cc/formatStr
-                 "Failed to play sound: %s" sound)))))
+(defn sfxEffect "" [sound]
+  (try (.playEffect cc/audioEngine sound)
+       (catch e (cc/warn (cc/formatStr
+                           "Failed to play sound: %s" sound)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn pauseEffects "" [] (.pauseAllEffects cc.audioEngine))
-(defn pauseMusic "" [] (.pauseMusic cc.audioEngine))
-(defn pauseAudio "" [] (pauseEffects) (pauseMusic))
+(defn pauseAudio "" [effects? music?]
+  (if music? (.pauseMusic cc/audioEngine))
+  (if effects? (.pauseAllEffects cc/audioEngine)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn resumeEffects "" [] (.resumeAllEffects cc.audioEngine))
-(defn resumeMusic "" [] (.resumeMusic cc.audioEngine))
-(defn resumeAudio "" [] (resumeEffects) (resumeMusic))
+(defn resumeAudio "" [effects? music?]
+  (if music? (.resumeMusic cc/audioEngine))
+  (if effects? (.resumeAllEffects cc/audioEngine)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn stopEffects "" [] (.stopAllEffects cc.audioEngine))
-(defn stopMusic "" [] (.stopMusic cc.audioEngine))
-(defn stopAudio "" [] (stopEffects) (stopMusic))
+(defn stopAudio "" [effects? music?]
+  (if music? (.stopMusic cc/audioEngine))
+  (if effects? (.stopAllEffects cc/audioEngine)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calcOffsets "" [sz]
@@ -104,10 +99,9 @@
            (/ sz.height *golden-ratio*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn reifySpriteBatch "" [name]
-  (->> (xcfg/getImage name)
-       (.addImage cc.textureCache)
-       (cc/SpriteBatchNode.createWithTexture )))
+(defn createSpriteBatch "" [image]
+  (->> (.addImage cc/textureCache image)
+       (.createWithTexture cc/SpriteBatchNode )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createAudioMItems "" [&[onIcon ovIcon]]
@@ -124,114 +118,84 @@
    (createMenuImg onIcon onIcon)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn calcDist "" [node-a node-b]
-  (cc.pDistance (.getPosition node-a)
-                (.getPosition node-b)))
+(defn calcDist "" [a b]
+  (cc/pDistance (.getPosition a)
+                (.getPosition b)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn normalize "" [node-a node-b]
-  (cc/pNormalize (cc/pSub (.getPosition node-b)
-                          (.getPosition node-a))))
+(defn normalize "" [a b]
+  (cc/pNormalize (cc/pSub (.getPosition b)
+                          (.getPosition a))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createMenuText "" [fnt point txt color]
-  (var z (createTTFLabel fnt point txt))
+(defn createMenuText "" [fnt txt color & [pointSize]]
+  (var z (if (some? pointSize)
+           (createTTFLabel fnt pointSize txt) (createBMFLabel fnt txt)))
   (.setColor z color)
-  (cc/MenuItemLabel.create z))
+  (.create cc/MenuItemLabel z))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createMenuText "" [fnt txt color]
-  (var z (createBMFLabel fnt txt))
-  (.setColor z color)
-  (cc/MenuItemLabel.create z))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createMenuImg "" [normal & [selected]]
+(defn createMenuBtn "" [frame? normal & [selected]]
   (set! selected (opt?? selected normal))
-  (cc/MenuItemSprite.create
-    (createSprite normal) (createSpeite selected)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createMenuBtn "" [normal & [selected]]
-  (set! selected (opt?? selected normal))
-  (cc/MenuItemImage.create
-    (xcfg/getImage normal) (xcfg/getImage selected)))
+  (if frame?
+    (.create cc/MenuItemSprite
+             (createSprite normal) (createSprite selected))
+    (.create cc/MenuItemImage
+             (xcfg/getImage normal) (xcfg/getImage selected))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pointInBox?
   "Test if this point is inside this rectangle"
-  [box & [x y]]
+  [box x & [y]]
+  ;x is a point and y is not set
   (when-not (number? x)
-    ;x is a point and y is not set
     (set! y x.y x x.x))
   (and (>= x box.left)
        (<= x box.right)
        (>= y box.bottom) (<= y box.top)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createBMFLabel "" [fnt txt & [x y]]
-  (var f (.createWithBMFont cc/Label
-                            (xcfg/getFont fnt) txt))
-  (.setOpacity f (* 0.9 255))
-  (when (or (number? x)
-            (some? x))
-    (if-not (number? x)
-      (set! y x.y x x.x))
-    (.setPosition f x y))
-  f)
+(defn createTextLabel "" [fnt txt & [pointSize]]
+  (if (some? pointSize)
+    (new cc/LabelTTF txt fnt pointSize)
+    (new cc/LabelBMFont txt fnt)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createTTFLabel "" [fnt sz txt & [x y]]
-  (var f (.createWithTTF cc/Label
-                         txt
-                         (xcfg/getFont fnt) sz))
-  (when (or (number? x)
-            (some? x))
-    (if-not (number? x)
-      (set! y x.y x x.x))
-    (.setPosition f x y))
-  f)
+(defn sprite? "" [s] (inst? cc/Sprite s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn collide?
   "Test collision of 2 sprites"
-  [node-a node-b]
-  (if (and node-a node-b)
-    (.intersectsRect (bbox node-a)
-                     (bbox node-b)) #f))
+  [a b]
+  (if (and a b) (.intersectsRect (bbox a) (bbox b)) #f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setDevRes "" [x y policy]
-  (-> (.getOpenGLView cc.director)
+  (-> (.getOpenGLView cc/director)
       (.setDesignResolutionSize x y policy)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn isTapped? "" [node tap]
-  (<= (.distance tap (.getPosition node))
-      (* 0.8 (get-in (.getBoundingBox node)
-                     [:size :width]))))
+  (var d (.distance tap (.getPosition node))
+       {:keys [width height]} (.getBoundingBox node))
+  (or (<= d (* 0.8 width))
+      (<= d (* 0.8 height))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn deltaX "" [node-a node-b]
-  (- (.getPositionX node-a) (.getPositionX node-b)))
+(defn deltaX "" [a b] (- (.getPositionX a) (.getPositionX b)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn deltaY "" [node-a node-b]
-  (- (.getPositionY node-a) (.getPositionY node-b)))
+(defn deltaY "" [a b] (- (.getPositionY a) (.getPositionY b)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn isPortrait? "" []
-  (var s (screen)) (> s.height s.width))
+(defn isPortrait? "" [] (var s (screenSize)) (> s.height s.width))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn readPlist "" [url]
-  (var s (.getStringFromFile jsb/fileUtils url))
-  (.parse cc/plistParser s))
+  (->> (.getStringFromFile jsb/fileUtils url) (.parse cc/plistParser )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn readJson "" [url]
-  (var s (.getStringFromFile jsb/fileUtils url))
-  (JSON/parse s))
+(defn readJson "" [url] (JSON/parse (.getStringFromFile jsb/fileUtils url)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (comment
@@ -240,21 +204,22 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn outOfBound? "" [a B]
-  (or (> a.left B.right)
-      (< a.top B.bottom)
-      (< a.right B.left)
-      (> a.bottom B.top)))
+  (and (inst? Box4 a)
+       (inst? Box4 B)
+       (or (> a.left B.right)
+           (< a.top B.bottom)
+           (< a.right B.left)
+           (> a.bottom B.top))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn scaleSize "" [z scale]
-  (cc/size (* z.width scale) (* z.height scale)))
+(defn scaleSize "" [z scale] (cc/size (* z.width scale) (* z.height scale)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn undoTimer "" [tm] (if tm (.release tm)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createTime
-  "Reify a timer action"
+  "Create a timer action"
   [par millis]
   (var t (.create cc/DelayTime (/ millis 1000.0)))
   (.retain t)
@@ -262,191 +227,142 @@
   t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn timerDone? "" [t] (if t (.isDone t) #f))
+(defn timerDone? "" [t] (if t (.isDone t) undefined))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createAnimation "" [dpu restore? loops]
+(defn createAnimation "" [dpu loops restore?]
   (doto (.create cc/Animation)
-    (.setRestoreOriginalFrame restore?)
     (.setDelayPerUnit dpu)
-    (.setLoops loops)))
+    (.setLoops loops)
+    (.setRestoreOriginalFrame restore?)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createSprite
-  "Reify a sprite from its frame name"
-  [name]
-  (.createWithSpriteFrameName cc/Sprite name))
+(defn createSpriteFromPath
+  "Create a sprite." [path name] (new cc/Sprite (str path "/" name)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createImage
-  "Reify a sprite from its frame name"
-  [name]
-  (.create cc/Sprite (xcfg/getImage name)))
+(defn createSprite "Create a sprite." [name] (new cc/Sprite name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn loadSprite
-  ""
-  [fname path]
-  (var sp (.create cc/Sprite))
-  (.initWithFile sp (str path "/" fname))
-  sp)
+(defn bbox4 "" [n]
+  (var r (.getBoundingBox n))
+  (Box4 (+ r.y r.height) (+ r.x r.width) r.y r.x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn bbox4 "" [s]
-  (var {:keys [origin size]} (.getBoundingBox s))
-  (Box4 (+ origin.y size.height)
-        (+ origin.x size.width)
-        origin.y
-        origin.x))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn prelude "" [] (runEx (xcfg/prelude)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn runEx "" [s]
-  (run s (xcfg/cstVal :SCENE-DELAY)))
+(defn runEx "" [s & [delay]] (run s delay))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn run "" [s & [delay]]
   (if (number? delay)
     (->> (.create cc/TransitionCrossFade delay s)
-         (.replaceScene cc.director))
-    (.replaceScene cc.director)))
+         (.replaceScene cc/director))
+    (.replaceScene cc/director)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn push "" [s & [delay]]
-  (if (number? delay)
-    (set! delay (xcfg/cstVal :SCENE-DELAY)))
-  (.pushScene cc.director
+(defn pushScene "" [s & [delay]]
+  (.pushScene cc/director
       (.create cc/TransitionCrossFade delay s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn isTransitioning? "" []
-  (some? (.getRunningScene cc.director)))
+(defn isTransitioning? "" [] (some? (.getRunningScene cc/director)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn calcSize
   "Find size of this sprite"
   [frame]
-  (get (.boundingBox (createSprite frame)) :size))
+  (var b (.getBoundingBox (createSprite frame)))
+  (cc/size b.width b.height))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn halfHW
   "Calculate halves of width and height of this sprite"
   [s]
-  (var z (get (.getBoundingBox s) :size))
-  (cc/size (* 0.5 z.width) (* 0.5 z.height)))
+  (var b (.getBoundingBox s))
+  (cc/size (* 0.5 b.width) (* 0.5 b.height)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn bbox
-  "Reify a rectangle from this sprite"
-  [s]
-  (.getBoundingBox s))
+  "Rectangle from this sprite" [s] (.getBoundingBox s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getHeight "" [s]
-  (get-in (.getBoundingBox s) [:size :height]))
+(defn getHeight "" [s] (.-height (.getBoundingBox s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getWidth "" [s]
-  (get-in (.getBoundingBox s) [:size :width]))
+(defn getWidth "" [s] (.-width (.getBoundingBox s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getContentHeight "" [s]
-  (.-height (.getContentSize s)))
+(defn getContentHeight "" [s] (.-height (.getContentSize s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getContentWidth "" [s]
-  (.-width (.getContentSize s)))
+(defn getContentWidth "" [s] (.-width (.getContentSize s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn get-XXX "" [s px bound]
-  (var w (get-in (.getBoundingBox s) [:size :width])
+  (var w (.-width (.getBoundingBox s))
        a (.-x (.getAnchorPoint s)))
   (+ px (* w (- bound a))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn get-YYY "" [s py bound]
-  (var h (get-in (.getBoundingBox s) [:size :height])
+  (var h (.-height (.getBoundingBox s))
        a (.-y (.getAnchorPoint s)))
   (+ py (* h (- bound a))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getLeft "" [s]
-  (get-XXX s (.-x (.getPosition s)) (.-x (anchorL))))
+  (get-XXX s (.-x (.getPosition s)) (.-x *anchor-l*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getRight "" [s]
-  (get-XXX s (.-x (.getPosition s)) (.-x (anchorR))))
+  (get-XXX s (.-x (.getPosition s)) (.-x *anchor-r*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getBottom "" [s]
-  (get-YYY s (.-y (.getPosition s)) (.-y (anchorB))))
+  (get-YYY s (.-y (.getPosition s)) (.-y *anchor-b*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getTop "" [s]
-  (get-YYY s (.-y (.getPosition s)) (.-y (anchorT))))
+  (get-YYY s (.-y (.getPosition s)) (.-y *anchor-t*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn centerX
-  "Get the x pos of the center of the visible screen"
-  []
-  (.-x (center)))
+  "x pos of the center of the visible screen" [] (.-x (centerPoint)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn centerY
-  "Get the y pos of the center of the visible screen."
-  []
-  (.-y (center)))
+  "y pos of the center of the visible screen." [] (.-y (centerPoint)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn center
+(defn centerPoint
   "Get the center of the visible screen"
   []
-  (var {:keys [origin size]} (visRect))
-  (cc/p (+ origin.x (HWZ size))
-        (+ origin.y (HHZ size))))
+  (var pt (visOrigin)  sz (visSize))
+  (cc/p (+ pt.x (HWZ sz.width)) (+ pt.y (HHZ sz.height))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn screenHeight
-  "Get the screen height" [] (.-height (screen)))
+  "Get the screen height" [] (.-height (screenSize)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn screenWidth
-  "Get the screen width" [] (.-width (screen)))
+  "Get the screen width" [] (.-width (screenSize)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn visRect
-  "Get the visible screen rectangle" []
-  (-> cc.director
-      (.getOpenGLView) (.getVisibleRect)))
+(defn visOrigin "" [] (-> cc/director (.getOpenGLView) (.getVisibleOrigin)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn visSize "" []
-  (get (-> cc.director
-           (.getOpenGLView)
-           (.getVisibleRect)) :size))
+(defn visSize "" [] (-> cc/director (.getOpenGLView) (.getVisibleSize)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn visBox
   "Get the visible screen box" []
-  (var {:keys [origin size]}
-       (-> cc.director
-           (.getOpenGLView)(.getVisibleRect)))
-  (Box4 (+ origin.y size.height)
-        (+ origin.x size.width) origin.y origin.x))
+  (var pt (visOrigin) sz (visSize))
+  (new Box4 (+ pt.y sz.height) (+ pt.x sz.width) pt.y pt.x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn screen
+(defn screenSize
   "Get the actual window/frame size." []
-  (-> cc.director
-      (.getOpenGLView)(.getFrameSize)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn scenter
-  "Get the actual screen center." []
-  (var sz (screen))
-  (cc/p (HWZ sz) (HHZ sz)))
+  (-> cc/director (.getOpenGLView)(.getFrameSize)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vboxMID
@@ -469,7 +385,6 @@
        x (+ rect.left
             (* sw 0.5) (* dt vel.x)) ;new x
        vx vel.x vy vel.y hit? #f)
-
   (cond
     (> (+ y sz) bbox.top) ;;hitting top wall
     (set! y (- bbox.top sz)
@@ -501,10 +416,9 @@
            (< a2.top a1.bottom))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const *scac*
-(fn [&xs]
-(var that cc.spriteFrameCache)
-(that.getSpriteFrameByName.apply that xs)))
+(const *scac* (fn [&xs]
+                (var that cc.spriteFrameCache)
+                (that.getSpriteFrameByName.apply that xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getSpriteFrame
@@ -512,22 +426,23 @@
   using its id (e.g. #ship)"
   [frameid & [rect]]
   (var f (*scac* frameid))
-  (if (some? rect) (.setRect f rect)) f)
+  (if f (if rect (.setRect f rect))) f)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn anchorC "" [] (cc/p 0.5 0.5))
-(defn anchorT "" [] (cc/p 0.5 1))
-(defn anchorTR "" [] (cc/p 1 1))
-(defn anchorR "" [] (cc/p 1 0.5))
-(defn anchorBR "" [] (cc/p 1 0))
-(defn anchorB "" [] (cc/p 0.5 0))
-(defn anchorBL "" [] (cc/p 0 0))
-(defn anchorL "" [] (cc/p 0 0.5))
-(defn anchorTL "" [] (cc/p 0 1))
+(const *anchor-c*  (cc/p 0.5 0.5))
+(const *anchor-t*  (cc/p 0.5 1))
+(const *anchor-tr* (cc/p 1 1))
+(const *anchor-r* (cc/p 1 0.5))
+(const *anchor-br* (cc/p 1 0))
+(const *anchor-b* (cc/p 0.5 0))
+(const *anchor-bl* (cc/p 0 0))
+(const *anchor-l* (cc/p 0 0.5))
+(const *anchor-tl* (cc/p 0 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const *csize* (fn [s]
-                 (.-size (.getBoundingBox s))))
+                 (var b (.getBoundingBox s))
+                 (cc/size b.width b.height)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn resolveElastic
@@ -665,11 +580,11 @@
       (func))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn testCollideNode "" [p1 node]
-  (when (get node :status)
+(defn testCollideEntity "" [p1 ent]
+  (when (get ent :status)
     (.foreach p1
               (fn [e]
-                (testCollideNodes e node)))))
+                (testCollideEntities e ent)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn testCollidePools "" [p1 p2]
@@ -677,10 +592,10 @@
             (fn [e1]
               (.foreach p2
                         (fn [e2]
-                          (testCollideNodes e1 e2))))))
+                          (testCollideEntities e1 e2))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn testCollideNodes "" [e1 e2]
+(defn testCollideEntities "" [e1 e2]
   (var s2 (.get e2 :pixie)
        s1 (.get e1 :pixie))
   (when (and (get e2 :status)
@@ -690,35 +605,27 @@
     (.hurt (get e1 :health))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn hibernate "" [node]
-  (var s (get node :pixie))
+(defn hibernate "" [ent]
+  (var s (get ent :pixie))
   (if s (.deflate s))
-  (.yield node))
+  (.drop! ent))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn resurrect "" [node x y]
-  (var h (get node :health)
-       s (get node :pixie))
+(defn resurrect "" [ent x y]
+  (var h (get ent :health)
+       s (get ent :pixie))
   (if s (.inflate s x y))
   (if h (.reset h))
-  (.take node))
+  (.take! ent))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn kumakaze "" [node]
-  (var h (get node :health))
+(defn kumakaze "" [ent]
+  (var h (get ent :health))
   (if h
     (assoc! h :curHP 0)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn resurrect "" [node]
-  (var h (get node :health)
-       s (get node :pixie))
-  (if s (.inflate s))
-  (if h (.reset h))
-  (.take node))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn resolveNodes "" [pool]
+(defn resolveEntities "" [pool]
   (.foreach pool
             (fn [e]
               (when (get e :status)
@@ -729,6 +636,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
 
