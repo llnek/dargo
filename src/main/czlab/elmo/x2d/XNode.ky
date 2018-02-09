@@ -9,68 +9,48 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.elmo.x2d.XNode
+  czlab.elmo.x2d.core
 
   (:require ["kirby"
              :as K :refer []]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;#define __decl_get_iid(x) virtual int getIID() { return x; }
-;#define __decl_update() virtual void update(float);
-;#define __decl_deco_ui() virtual void decoUI();
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro class "" [name super &xs]
   `(const ~name (.extend ~super (object ~@xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype SCTX []
-  (constructor [] (assign! this :count 1)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addAudioIcons
-  "Add a toggle for sound on & off."
-  [audios anchor pos & [selector target]]
-  (var a (if selector
-           (new cc/MenuItemToggle (_1 audios) (_2 audios) selector target)
-           (new cc/MenuItemToggle (_1 audios) (_2 audios))))
+(defn createSoundToggles
+  "On/Off toggle for sound."
+  [audios cb target & [anchor pos]]
+  (var a (new cc/MenuItemToggle
+              (_1 audios)
+              (_2 audios) cb target))
   (.setSelectedIndex a 0)
-  (.setAnchorPoint a anchor)
-  (doto (new cc/Menu a) (.setPosition pos)))
+  (if anchor
+    (.setAnchorPoint a anchor))
+  (var menu (new cc/Menu a))
+  (if pos
+    (.setPosition menu pos)) menu)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addAtlas "" [co atlasName & [zx]]
-  (var a (cx/createSpriteBatch name))
+(defn addBatch "" [co batch & [zx]]
+  (var b (-> (get-in (.-xcfg co)
+                     [:batches batch]) (cx/createSpriteBatch )))
   (if-not (number? zx)
-    (.addChild co a)
-    (.addChild co a zx))
-  (update-in! co [:atlases] assoc! atlasName a) a)
+    (.addChild co b batch)
+    (.addChild co b batch zx)) co)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addAtlasFrame "" [co atlasName frame pos & [zx tag]]
+(defn addSpriteFrame "" [co frame & [pos zx tag]]
   (var tt (cx/createSprite frame))
-  (set! zx (opt?? zx 0))
-  (set! tag (opt?? tag 0))
-  (.setPosition tt pos)
-  (addAtlasItem co atlasName tt zx tag))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addFrame "" [co frame pos & [zx tag]]
-  (var tt (cx/createSprite frame))
-  (set! zx (opt?? zx 0))
-  (set! tag (opt?? tag 0))
-  (.setPosition tt pos)
+  (if pos (.setPosition tt pos))
   (addItem co tt zx tag))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addAtlasItem "" [co atlas item & [zx tag]]
-  (var p (get co :atlases))
-  (if (sprite? item)
-    (.setBatchNode item p))
-  (addItem p item zx tag))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addItem "" [co item & [zx tag]]
+  (if (and (inst? cc/Sprite item)
+           (inst? cc/SpriteBatchNode co))
+    (.setBatchNode item co))
   (set! zx (opt?? zx 0))
   (set! tag (opt?? tag 0))
   (.addChild co item zx tag))
@@ -78,22 +58,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn centerImage "" [co image & [zx tag]]
   (var s (new cc/Sprite image))
-  (set! zx (opt?? zx 0))
-  (set! tag (opt?? tag 0))
-  (.setPosition s (cx/centerPoint))
-  (.addChild co s zx tag)
-  s)
+  (.setPosition s (cx/center)) (addItem co s zx tag) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn removeAtlasAll "" [co atlasName]
-  (if-some [p (get-in co [:atlases atlasName])] (.removeAllChildren p)) nil)
+(defn removeBatchAll "" [co batch]
+  (do->nil (if-some [p (.getChildByName co batch)] (.removeAllChildren p))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeAll "" [co] (.removeAllChildren co))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn removeItem "" [co item]
-  (if item (.removeFromParent item)) nil)
+(defn removeItem "" [co item] (do->nil (if item (.removeFromParent item))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (class XScene
@@ -220,13 +195,7 @@
        getIID (fn [] 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const GMode (object :ONE 1 :TWO 2 :NET 3 :NICHTS -1))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype GCX [SCTX]
-  (constructor [mode &[odin]]
-    (super)
-    (assign! this :mode mode :odin odin)))
+(const GMode `{ ONE 1 TWO 2 NET 3 NICHTS -1 })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (class GameScene
