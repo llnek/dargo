@@ -20,6 +20,10 @@
 ;#define __decl_deco_ui() virtual void decoUI();
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro class "" [name super &xs]
+  `(const ~name (.extend ~super (object ~@xs))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype SCTX []
   (constructor [] (assign! this :count 1)))
 
@@ -92,153 +96,128 @@
   (if item (.removeFromParent item)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype XScene [cc/Scene]
-
-  (constructor [ &[physics?] ]
-    (super)
-    (assign! this
-             :usePhysics? (if physics? #t #f)))
-
-  (addLayer [y & [zx]]
-    (addChild this y zx (.getIID y)))
-
-  (getLayer [tag]
-    (.getChildByTag this tag))
-
-  (init []
-    (var ok? (if (get this :usePhysics?)
-               (.initWithPhysics this) (super)))
-    (if ok? (.decoUI this))
-    ok?))
+(class XScene
+       cc/Scene
+       ctor (fn [] (._super this))
+       init (fn []
+              (._super this)
+              (.deco this))
+       addLayer (fn [y & [zx]]
+                  (addItem this y zx (.getIID y)))
+       getLayer (fn [tag] (.getChildByTag this tag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype XLayer [cc/Layer]
-
-  (initEx [par & [zx]]
-    (var ok? (.init this))
-    (when ok?
-      (.addLayer par this zx)
-      (.decoPre this)
-      (.decoUI this)
-      (.decoPost this)) ok?)
-
-  (keyPoll [key]
-    (if (and (>= key 0)
-             (< key 256)) (nth this._keys key) #f))
-  (disableListeners []
-    (try (.setKeyboardEnabled this false) (catch e nil))
-    (try (.setMouseEnabled this false) (catch  e nil))
-    (try (.setTouchEnabled this false) (catch e nil))
-    (.fill this._keys false))
-
-  (enableListeners []
-    (.disableListeners this)
-    (try (if (cx/isDesktop?)
-           (.setKeyboardEnabled this true))
-         (catch e
-          (cc.log "failed to init-keys")))
-    (try (if (cx/isDesktop?) (.setMouseEnabled this true))
-         (catch e
-           (cc.log "failed to init-mouse")))
-    (try (if-not (cx/isDesktop?) (.setTouchEnabled this true))
-         (catch e
-           (cc.log "failed to init-touch"))))
-
-  (onTouchesBegan [ts evt]
-    (if (= this._tMode
-           cc/Touch.DispatchMode.ALL_AT_ONCE)
-      (.onTouchStart this ts)
-      (.onTouchStart this (_1 ts))))
-
-  (onTouchesMoved [ts evt]
-    (if (= this._tMode cc/Touch.DispatchMode.ALL_AT_ONCE)
-      (.onTouchMotion this ts)
-      (.onTouchMotion this (_1 ts))))
-
-  (onTouchesEnded [ts evt]
-    (if (= this._tMode cc/Touch.DispatchMode.ALL_AT_ONCE)
-      (.onTouchEnd this ts)
-      (.onTouchEnd this (_1 ts))))
-
-  (onMouseMotion [loc] )
-
-  (onTouchStart [ts]
-    (raise! "you need to implement this!"))
-
-  (onTouchStart [tap] #t)
-
-  (onTouchEnd [ts]
-    (raise! "you need to implement this!"))
-
-  (onTouchEnd [tap] )
-
-  (onTouchMotion [ts]
-    (raise! "you need to implement this!"))
-
-  (onKeyPressed [key evt]
-    (if (and (>= key 0)
-             (< key (.size this._keys)))
-      (aset this->_keys key #t)))
-
-  (onKeyReleased [key evt]
-    (if (and (>= key 0)
-             (< key (.size this._keys)))
-      (aset this->_keys key #f)))
-
-  (onMouseDown [evt]
-    (when-not this._mouseDown
-      (assign! this
-               :_mouseTarget #f
-               :_mouseDown #t)
-      (if (= (.getMouseButton evt) @@_mouseBtn)
-        (assign! this
-                 :_mouseTarget
-                 (.onMouseStart this (.getLocationInView evt))))))
-
-  (onMouseUp [evt]
-    (if (= (.getMouseButton evt) @@_mouseBtn)
-      (.onMouseClick this (.getLocationInView evt)))
-    (assign! this :_mouseTarget #f :_mouseDown #f))
-
-  (onMouseStart [loc] #t)
-
-  (onMouseClick [loc] )
-
-  (onMouseMove [evt]
-    (if (and @@_mouseTarget
-             (= @@_mouseBtn (.getMouseButton evt)))
-      (.onMouseMotion this (.getLocationInView evt))))
-
-  (onMouseScroll [evt] )
-
-  (setMouseEnabled [enabled?]
-    (when-not (= @@_mouseEnabled enabled?)
-      (assign! this :_mouseEnabled enabled?)
-      (if enabled?
-        (when (nil? @@_mouseListener)
-          (var n (.create cc/EventListenerMouse))
-          (assign! this :_mouseListener n)
-          (set! n.onMouseScroll (onMouseScroll this))
-          (set! n.onMouseMove (onMouseMove this))
-          (set! n.onMouseUp (onMouseUp this))
-          (set! n.onMouseDown (onMouseDown this))
-          (.addEventListenerWithSceneGraphPriority @@eventDispatcher n this))
-        (do (.removeEventListener @@_eventDispatcher @@_mouseListener)
-            (set! this._mouseListener nil)))))
-
-  (constructor []
-    (assign! this
-             :tMode cc/Touch.DispatchMode.ONE_BY_ONE
-             ;;:tMode cc/Touch.DispatchMode.ALL_AT_ONCE
-             :mouseListener nil
-             :mouseBtn MOUSE_BUTTON_LEFT
-             :mouseEnabled? #f
-             :mouseTarget? #f
-             :mouseDown? #f
-             :keys (fillArray 256 #f)))
-
-  (isMouseEnabled? [] @@mouseEnabled)
-  (getIID [] 1))
+(class XLayer
+       cc/Layer
+       initEx
+       (fn [par & [zx]]
+         (when (.init this)
+           (.addLayer par this zx)
+           (.preDeco this)
+           (.deco this)
+           (.postDeco this) #t))
+       keyPoll
+       (fn [k]
+         (if (and (>= k 0)
+                  (< k 256)) (nth @@keys k) #f))
+       disableListeners
+       (fn []
+         (trye! (.setKeyboardEnabled this #f))
+         (trye! (.setMouseEnabled this #f))
+         (trye! (.setTouchEnabled this #f)) (.fill @@keys #f))
+       enableListeners
+       (fn []
+         (.disableListeners this)
+         (cond
+           (cx/isDesktop?)
+           (do (.setMouseEnabled this #t)
+               (.setKeyboardEnabled this #t))
+           :else
+           (.setTouchEnabled this #t)))
+       onTouchesBegan
+       (fn [ts evt]
+         (if (= @@tMode
+                cc/EventListener.TOUCH_ALL_AT_ONCE)
+           (.onTouchStart this ts)
+           (.onTouchStart this (_1 ts))))
+       onTouchesMoved
+       (fn [ts evt]
+         (if (= @@tMode
+                cc/EventListener.TOUCH_ALL_AT_ONCE)
+           (.onTouchMotion this ts)
+           (.onTouchMotion this (_1 ts))))
+       onTouchesEnded
+       (fn [ts evt]
+         (if (= @@tMode
+                cc/EventListener.TOUCH_ALL_AT_ONCE)
+           (.onTouchEnd this ts)
+           (.onTouchEnd this (_1 ts))))
+       onTouchStart (fn [ts] (raise! "you need to implement this!"))
+       onTouchStart (fn [tap] #t)
+       onTouchEnd (fn [ts] (raise! "you need to implement this!"))
+       onTouchEnd (fn [tap] )
+       onTouchMotion (fn [ts] (raise! "you need to implement this!"))
+       onKeyPressed
+       (fn [k evt]
+         (if (and (>= k 0)
+                  (< k (n# @@keys))) (aset @@keys k #t)))
+       onKeyReleased
+       (fn [k evt]
+         (if (and (>= k 0)
+                  (< k (n# @@keys))) (aset @@keys k #f)))
+       onMouseDown
+       (fn [evt]
+         (when-not @@mouseDown?
+           (assign! this
+                    :mouseTarget? #f :mouseDown? #t)
+           (if (= (.getButton evt) @@mouseBtn)
+             (assign! this
+                      :mouseTarget?
+                      (.onMouseStart this (.getLocationInView evt))))))
+       onMouseUp
+       (fn [evt]
+         (if (= (.getButton evt) @@mouseBtn)
+           (.onMouseClick this (.getLocationInView evt)))
+         (assign! this :mouseTarget? #f :mouseDown? #f))
+       onMouseStart (fn [loc] #t)
+       onMouseClick (fn [loc] )
+       onMouseScroll (fn [evt] )
+       onMouseMotion (fn [loc] )
+       onMouseMove
+       (fn [evt]
+         (if (and @@mouseTarget?
+                  (= @@mouseBtn (.getButton evt)))
+           (.onMouseMotion this (.getLocationInView evt))))
+       setMouseEnabled
+       (fn [enabled?]
+         (when-not (= @@mouseEnabled? enabled?)
+           (set! @@mouseEnabled? enabled?)
+           (if enabled?
+             (when (nil? @@mouseListener)
+               (var me this cb #(.onMouseXXX me %))
+               (set! @@mouseListener
+                     (.create cc/EventListener
+                              `{event cc/EventListener.MOUSE
+                                onMouseScroll cb
+                                onMouseMove cb
+                                onMouseUp cb
+                                onMouseDown cb}))
+               (.addListener cc/eventManager @@mouseListener))
+             (do (.removeListener cc/eventManager @@mouseListener)
+                 (nil! @@mouseListener)))))
+       ctor
+       (fn []
+         (assign! this
+                  ;:tMode cc/EventListener.TOUCH_ALL_AT_ONCE
+                  :tMode cc/EventListener.TOUCH_ONE_BY_ONE
+                  :mouseListener nil
+                  :mouseBtn cc/EventMouse.BUTTON_LEFT
+                  :mouseEnabled? #f
+                  :mouseTarget? #f
+                  :mouseDown? #f
+                  :keys (fillArray 256 #f)))
+       isMouseEnabled? (fn [] @@mouseEnabled)
+       getIID (fn [] 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const GMode (object :ONE 1 :TWO 2 :NET 3 :NICHTS -1))
@@ -250,135 +229,103 @@
     (assign! this :mode mode :odin odin)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype GameScene [XScene]
-
-  (constructor [cfg &[physics?]]
-    (super physics?)
-    (assign! this :cfg cfg))
-
-  (getCurLevel []
-    (.getLevel @@cfg @@level))
-
-  (getLevelCfg []
-    (.getLevelCfg @@cfg @@level))
-
-  (getPool [key] (get @@pools key))
-
-  (createPool [key]
-    (assoc! @@pools key (new ecs/EntityPool )))
-
-  (resetPools [] (resetMap! @@pools))
-
-  (getMode [] (.-mode @@context))
-
-  (isOnline? [] (some? (.-odin @@context)))
-
-  (getEnclosureRect [] (cx/visRect))
-
-  (getEnclosureBox [] (cx/visBox))
-
-  (constructor []
-    (assign! this
-             :pools {}
-             :msgQ {}
-             :state 0
-             :level 1))
-
-  (play [] (set! @@state 911))
-  (isLive? [] (> @@state 0))
-  (stop! [] (set! @@state 0))
-
-  (getLevel [] @@level)
-
-  (sendMsg [topic] (sendMsgEx topic nil)))
+(class GameScene
+       XScene
+       ctor (fn [cfg]
+              (._super this)
+              (assign! this
+                       :cfg cfg
+                       :pools {}
+                       :msgQ {}
+                       :state 0
+                       :level 1))
+       getCurLevel (fn [] (.getLevel @@cfg @@level))
+       getLevelCfg (fn [] (.getLevelCfg @@cfg @@level))
+       getPool (fn [p] (get @@pools p))
+       createPool (fn [p] (assoc! @@pools p (new ecs/EntityPool )))
+       resetPools (fn [] (K/resetMap! @@pools))
+       getMode (fn [] (.-mode @@context))
+       isOnline? (fn [] (some? (.-odin @@context)))
+       getEnclosureRect (fn [] (cx/visRect))
+       getEnclosureBox (fn [] (cx/visBox))
+       play (fn [] (set! @@state 911))
+       isLive? (fn [] (> @@state 0))
+       stop! (fn [] (set! @@state 0))
+       getLevel (fn [] @@level)
+       sendMsg (fn [topic] (sendMsgEx topic nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype GameLayer [XLayer]
-
-  (decoPost []
-    (when @@engine
-      (.ignite @@engine))
-    (.scheduleUpdate this))
-
-  (decoPre []
-    (cx/resumeAudio #t #t)
-    (.enableListeners this))
-
-  (surcease []
-    (.disableListeners this)
-    (cx/pauseAudio #t #t)
-    (.unscheduleUpdate this))
-
-  (update [dt]
-    (if (and (not (cx/isTransitioning?))
-             (.isLive MainGameScene)
-             (some? @@engine))
-      (.update @@engine dt)))
-
-  (constructor []
-    (assign! this :engine nil)))
+(class GameLayer
+       XLayer
+       decoPost (fn []
+                  (when @@engine
+                    (.ignite @@engine))
+                  (.scheduleUpdate this))
+       preDeco (fn []
+                 (cx/resumeAudio #t #t)
+                 (.enableListeners this))
+       surcease (fn []
+                  (.disableListeners this)
+                  (cx/pauseAudio #t #t)
+                  (.unscheduleUpdate this))
+       update (fn [dt]
+                (if (and (not (cx/isTransitioning?))
+                         (.isLive MainGameScene)
+                         (some? @@engine))
+                  (.update @@engine dt)))
+       ctor (fn [] (assign! this :engine nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype XLives [cc/Node]
-
-  (reduce [ &[x]]
-    (set! x (opt?? x 1))
-    (while (> x 0)
-      (when (> @@icons.size 0)
-        ;;auto it= _icons.back(); it->removeFromParent(); _icons.pop_back();
-        nil)
-      (-= x 1)
-      (-= @@curLives 1)))
-
-  (reset []
-    (each #(.removeFromParent %) @@icons)
-    (resetVec! @@icons)
-    (set! @@curLives @@totalLives))
-
-  (resurrect []
-    (.reset this)
-    (.drawLives this))
-
-  (drawLives []
-    (var~ v x y)
-    (dotimes [n @@curLives]
-      (set! v (cx/createSprite @@frameId))
-      (.setScale v @@scale)
-      (when (zero? n)
-        (set! @@lifeSize (cx/scaleSize (CC_CSIZE v) @@scale)
-              y (- (.-y @@refPt) (HHZ @@lifeSize))
-              x (+ (.-x @@refPt) (HWZ @@lifeSize))))
-      (.setPosition v x y)
-      (addChild this v)
-      (conj! @@icons v)
-      (if (> @@dir 0)
-        (+= x (* 1.2 (.-width @@lifeSize)))
-        (-= x (* 1.2 (.-width @@lifeSize))))))
-
-  (initLives [frame lives x y & [scale d]]
-    (set! @@totalLives lives
-          @@frameId frame
-          @@curLives 0
-          @@dir (opt?? d 1)
-          @@scale (opt?? scale 1)
-          @@refPt (cc/p x y))
-    (.reset this)
-    (.drawLives this))
-
-  (constructor []
-    (assign! this
-             :icons []
-             :lifeSize (cc/size 0 0)
-             :refPt (cc/p 0 0)
-             :frameId ""
-             :scale 1
-             :dir 1
-             :totalLives 0
-             :curLives 0))
-
-  (isDead? [] (<= @@curLives 0))
-  (getLives [] @@curLives))
-
+(class XLives
+       cc/Node
+       reduce (fn [&[x]]
+                (set! x (opt?? x 1))
+                (while (> x 0)
+                  (when (> @@icons.size 0)
+                    ;;auto it= _icons.back(); it->removeFromParent(); _icons.pop_back();
+                    nil)
+                  (-= x 1)
+                  (-= @@curLives 1)))
+       reset (fn []
+               (each #(.removeFromParent %) @@icons)
+               (K/resetVec! @@icons)
+               (set! @@curLives @@totalLives))
+       resurrect (fn [] (.reset this) (.drawLives this))
+       drawLives (fn []
+                   (var~ v x y)
+                   (dotimes [n @@curLives]
+                     (set! v (cx/createSprite @@frameId))
+                     (.setScale v @@scale)
+                     (when (zero? n)
+                       (set! @@lifeSize (cx/scaleSize (CC_CSIZE v) @@scale)
+                             y (- (.-y @@refPt) (HHZ @@lifeSize))
+                             x (+ (.-x @@refPt) (HWZ @@lifeSize))))
+                     (.setPosition v x y)
+                     (.addChild this v)
+                     (conj! @@icons v)
+                     (if (> @@dir 0)
+                       (+= x (* 1.2 (.-width @@lifeSize)))
+                       (-= x (* 1.2 (.-width @@lifeSize))))))
+       initLives (fn [frame lives x y & [scale d]]
+                   (set! @@totalLives lives
+                         @@frameId frame
+                         @@curLives 0
+                         @@dir (opt?? d 1)
+                         @@scale (opt?? scale 1)
+                         @@refPt (cc/p x y))
+                   (.reset this)
+                   (.drawLives this))
+       ctor (fn [] (assign! this
+                            :icons []
+                            :lifeSize (cc/size 0 0)
+                            :refPt (cc/p 0 0)
+                            :frameId ""
+                            :scale 1
+                            :dir 1
+                            :totalLives 0
+                            :curLives 0))
+       isDead? (fn [] (<= @@curLives 0))
+       getLives (fn [] @@curLives))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
