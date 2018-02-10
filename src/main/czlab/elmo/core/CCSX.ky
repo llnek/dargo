@@ -99,7 +99,7 @@
            (/ sz.height *golden-ratio*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createSpriteBatch "" [image]
+(defn createSSheetNode "" [image]
   (->> (.addImage cc/textureCache image)
        (.createWithTexture cc/SpriteBatchNode )))
 

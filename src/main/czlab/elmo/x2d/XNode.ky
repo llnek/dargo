@@ -33,18 +33,22 @@
     (.setPosition menu pos)) menu)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addBatch "" [co batch & [zx]]
-  (var b (-> (get-in (.-xcfg co)
-                     [:batches batch]) (cx/createSpriteBatch )))
+(defn addSSheetNode "" [co sheet & [zx]]
+  (var n (-> (get-in (.-xcfg co)
+                     [:sheets sheet]) (cx/createSSheetNode)))
   (if-not (number? zx)
-    (.addChild co b batch)
-    (.addChild co b batch zx)) co)
+    (.addChild co n sheet)
+    (.addChild co n sheet zx)) co)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addSpriteFrame "" [co frame & [pos zx tag]]
-  (var tt (cx/createSprite frame))
-  (if pos (.setPosition tt pos))
-  (addItem co tt zx tag))
+(defn addSpriteFrame "" [co item' & [pos zx tag]]
+  (var [s n] (cond (array? item')
+                   [(.getChildByName co (_1 item'))
+                    (cx/createSprite (_2 item'))]
+                   (string? item')
+                   [nil (cx/createSprite item')]))
+  (if pos (.setPosition n pos))
+  (addItem (or s co) n zx tag) n)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addItem "" [co item & [zx tag]]
@@ -53,7 +57,7 @@
     (.setBatchNode item co))
   (set! zx (opt?? zx 0))
   (set! tag (opt?? tag 0))
-  (.addChild co item zx tag))
+  (.addChild co item zx tag) item)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn centerImage "" [co image & [zx tag]]
@@ -61,11 +65,11 @@
   (.setPosition s (cx/center)) (addItem co s zx tag) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn removeBatchAll "" [co batch]
-  (do->nil (if-some [p (.getChildByName co batch)] (.removeAllChildren p))))
+(defn removeBatchAll "" [co sheet]
+  (do->nil (if-some [p (.getChildByName co sheet)] (.removeAllChildren p))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn removeAll "" [co] (.removeAllChildren co))
+(defn removeAll "" [co] (.removeAllChildren co) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeItem "" [co item] (do->nil (if item (.removeFromParent item))))
@@ -74,41 +78,37 @@
 (class XScene
        cc/Scene
        ctor (fn [] (._super this))
-       init (fn []
-              (._super this)
-              (.deco this))
        addLayer (fn [y & [zx]]
                   (addItem this y zx (.getIID y)))
-       getLayer (fn [tag] (.getChildByTag this tag)))
+       getLayer (fn [tag]
+                  (cond (string? tag)
+                        (.getChildByName this tag)
+                        (number? tag)
+                        (.getChildByTag this tag))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (class XLayer
        cc/Layer
-       initEx
+       init
        (fn [par & [zx]]
-         (when (.init this)
-           (.addLayer par this zx)
-           (.preDeco this)
-           (.deco this)
-           (.postDeco this) #t))
+         (._super this)
+         (.addLayer par this zx) #t)
        keyPoll
        (fn [k]
          (if (and (>= k 0)
                   (< k 256)) (nth @@keys k) #f))
-       disableListeners
+       deregListeners
        (fn []
-         (trye! (.setKeyboardEnabled this #f))
-         (trye! (.setMouseEnabled this #f))
-         (trye! (.setTouchEnabled this #f)) (.fill @@keys #f))
-       enableListeners
-       (fn []
-         (.disableListeners this)
-         (cond
-           (cx/isDesktop?)
-           (do (.setMouseEnabled this #t)
-               (.setKeyboardEnabled this #t))
-           :else
-           (.setTouchEnabled this #t)))
+         (try (if @@cbMouse (.removeListener cc/eventManager @@cbMouse))
+              (if @@cbTouch (.removeListener cc/eventManager @@cbTouch))
+              (if @@cbKey (.removeListener cc/eventManager @@cbKey))
+              (catch e (set! @@cbMouse nil @@cbTouch nil @@cbKey nil))))
+       regListeners
+       (fn [] (.deregListeners this)
+         (cond (cx/isDesktop?)
+               (do (.regoMouse this)
+                   (.regoKeyboard this))
+               :else (.regoTouch this)))
        onTouchesBegan
        (fn [ts evt]
          (if (= @@tMode
@@ -158,28 +158,47 @@
        onMouseClick (fn [loc] )
        onMouseScroll (fn [evt] )
        onMouseMotion (fn [loc] )
+       onMouseXXX (fn [evt])
        onMouseMove
        (fn [evt]
          (if (and @@mouseTarget?
                   (= @@mouseBtn (.getButton evt)))
            (.onMouseMotion this (.getLocationInView evt))))
-       setMouseEnabled
-       (fn [enabled?]
-         (when-not (= @@mouseEnabled? enabled?)
-           (set! @@mouseEnabled? enabled?)
-           (if enabled?
-             (when (nil? @@mouseListener)
-               (var me this cb #(.onMouseXXX me %))
-               (set! @@mouseListener
-                     (.create cc/EventListener
-                              `{event cc/EventListener.MOUSE
-                                onMouseScroll cb
-                                onMouseMove cb
-                                onMouseUp cb
-                                onMouseDown cb}))
-               (.addListener cc/eventManager @@mouseListener))
-             (do (.removeListener cc/eventManager @@mouseListener)
-                 (nil! @@mouseListener)))))
+       deregMouse
+       (fn []
+         (if @@cbMouse (.removeListener
+                         cc/eventManager @@cbMouse))
+         (nil! @@cbMouse) nil)
+       regMouse
+       (fn []
+         (when (nil? @@cbMouse)
+           (var me this cb #(.onMouseXXX me %))
+           (set! @@cbMouse
+                 (.create cc/EventListener
+                          `{event cc/EventListener.MOUSE
+                            onMouseScroll cb
+                            onMouseMove cb
+                            onMouseUp cb
+                            onMouseDown cb}))
+           (.addListener cc/eventManager @@cbMouse)) @@cbMouse)
+       deregKeys
+       (fn [] (if @@cbKeys
+                (.removeListener
+                  cc/eventManager @@cbKeys)) (nil! @@cbKeys))
+       regKeys
+       (fn []
+         (set! @@cbKeys
+               (.create cc/EventListener
+                        `{ event cc/EventListener.KEYBOARD
+                          onKeyPressed (fn [k e] (aset @@keys k true))
+                          onKeyReleased (fn [k e] (aset @@keys k false)) }))
+         (.addListener cc/eventManager @@cbKeys) @@cbKeys)
+       deregTouch
+       (fn [] (if @@cbTouch
+                (.removeListener
+                  cc/eventManager @@cbTouch)) (nil! @@cbTouch))
+       regTouch
+       (fn [] )
        ctor
        (fn []
          (assign! this
