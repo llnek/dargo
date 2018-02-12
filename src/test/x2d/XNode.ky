@@ -164,41 +164,54 @@
          (if (and @@mouseTarget?
                   (= @@mouseBtn (.getButton evt)))
            (.onMouseMotion this (.getLocationInView evt))))
-       deregMouse
-       (fn []
-         (if @@cbMouse (.removeListener
-                         cc/eventManager @@cbMouse))
-         (nil! @@cbMouse) nil)
        regMouse
-       (fn []
-         (when (nil? @@cbMouse)
-           (var me this cb #(.onMouseXXX me %))
-           (set! @@cbMouse
-                 (.create cc/EventListener
-                          `{event cc/EventListener.MOUSE
-                            onMouseScroll cb
-                            onMouseMove cb
-                            onMouseUp cb
-                            onMouseDown cb}))
-           (.addListener cc/eventManager @@cbMouse)) @@cbMouse)
-       deregKeys
-       (fn [] (if @@cbKeys
-                (.removeListener
-                  cc/eventManager @@cbKeys)) (nil! @@cbKeys))
+       (fn [on?]
+         (if-not on?
+           (when @@cbMouse
+             (.removeListener cc/eventManager @@cbMouse)
+             (nil! @@cbMouse))
+           (when (nil? @@cbMouse)
+             (var me this cb #(.onMouseXXX me %))
+             (set! @@cbMouse
+                   (.create cc/EventListener
+                            `{event cc/EventListener.MOUSE
+                              onMouseScroll cb
+                              onMouseMove cb
+                              onMouseUp cb
+                              onMouseDown cb}))
+             (.addListener cc/eventManager @@cbMouse))) @@cbMouse)
        regKeys
-       (fn []
-         (set! @@cbKeys
-               (.create cc/EventListener
-                        `{ event cc/EventListener.KEYBOARD
-                          onKeyPressed (fn [k e] (aset @@keys k true))
-                          onKeyReleased (fn [k e] (aset @@keys k false)) }))
-         (.addListener cc/eventManager @@cbKeys) @@cbKeys)
-       deregTouch
-       (fn [] (if @@cbTouch
-                (.removeListener
-                  cc/eventManager @@cbTouch)) (nil! @@cbTouch))
+       (fn [on?]
+         (if-not on?
+           (when @@cbKeys
+             (.removeListener cc/eventManager @@cbKeys)
+             (nil! @@cbKeys))
+           (when (nil? @@cbKeys)
+             (var me this
+                  cbf #(.onKeyXXX me %1 %2 #f)
+                  cbt #(.onKeyXXX me %1 %2 #t))
+             (set! @@cbKeys
+                   (.create cc/EventListener
+                            `{event cc/EventListener.KEYBOARD
+                              onKeyPressed cbt
+                              onKeyReleased cbf }))
+             (.addListener cc/eventManager @@cbKeys))) @@cbKeys)
        regTouch
-       (fn [] )
+       (fn [on?]
+         (if-not on?
+           (when @@cbTouch (.removeListener
+                             cc/eventManager @@cbTouch) (nil! @@cbTouch))
+           (when (nil? @@cbTouch)
+             (var me this)
+             (set! @@cbTouch
+                   (.create cc/EventListeneer
+                            `{event cc/EventListener.TOUCH_ONE_BY_ONE
+                              swallowTouches true
+                              onTouchBegan (fn [] #t)
+                              onTouchMoved (fn [] )
+                              onTouchEnded (fn []) }))
+             (.addListener cc/eventManager @@cbTouch))) @@cbTouch)
+
        ctor
        (fn []
          (assign! this
