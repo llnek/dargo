@@ -1,0 +1,264 @@
+
+(ns czlab.elmo.core.asx)
+
+(defmacro defclass "" [name parent & more]
+  `(const ~name (.extend ~parent (object ~@more))))
+
+(def- SEED (atom 0))
+
+(defclass
+  Health
+  cc.Class
+  ctor
+  (fn [health]
+    (set! @@origHP health)
+    (assign! this :HP @@origHP))
+  hurt
+  (fn [damage from]
+    (-= @@HP (if (number? damage) damage 1)) this))
+
+(defclass
+  UIObj
+  cc.Class
+  inflate
+  (fn [&[options]]
+    (var {:keys [x y deg]} options)
+    (when @@sprite
+      (if (number? x)
+        (.setPosition @@sprite x y))
+      (if (number? deg)
+        (.setRotation @@sprite deg))
+      (if (number? scale)
+        (.setScale @@sprite scale))
+      (.setVisible @@sprite #t)))
+  deflate
+  (fn []
+    (when @@sprite
+      (.unscheduleAllCallbacks @@sprite)
+      (.stopAllActions @@sprite)
+      (.setVisible @@sprite #f)))
+  height
+  #(if @@sprite
+      (.-height (.getContentSize @@sprite)) 0)
+  width
+  #(if @@sprite
+      (.-width (.getContentSize @@sprite)) 0)
+  setPos
+  #(if @@sprite
+     (.setPosition @@sprite %1 %2))
+  pos
+  #(if @@sprite
+     (.getPosition @@sprite) (cc/p 0 0))
+  size
+  #(if @@sprite
+      (.getContentSize @@sprite) (cc/size 0 0))
+  pid
+  #(if @@sprite (.getTag @@sprite) 0)
+  ctor
+  (fn [s] (assign! this :sprite s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn l10nInit "" [table]
+  (LZString/toLocaleString table)
+  (set! LZString/locale cc.sys.language)
+  (set! LZString/defaultLocale "en"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn l10n "" [s & pms]
+  (var t (.toLocaleString s))
+  (if (not-empty pms)
+    (Mustache/render t pms) t))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const *game-modes* `{ ONE 1 TWO 2 NET 3 })
+(const *ws-uri* "/network/odin/websocket")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn fire "" [topic msg]
+  (if-some [r (cc.director.getRunningScene)]
+    (r.ebus.fire topic  (or msg `{} ))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getLevelCfg "" [cfg level] (get-in cfg [:levels level :cfg]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isIntersect "" [a1 a2]
+    (not (or (> a1.left a2.right)
+             (> a2.left a1.right)
+             (< a1.top a2.bottom)
+             (< a2.top a1.bottom))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn outOfBound "" [a B]
+  (if (and a B)
+      (or (> a.left B.right)
+          (< a.top B.bottom )
+          (< a.right  B.left)
+          (> a.bottom  B.top))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn calcXY "" [angle hypot]
+  ;; quadrants =  4 | 1
+  ;;             --------
+  ;;              3 | 2
+  (var [t x y q]
+       (cond
+         (and (>= angle 0)
+              (<= angle 90))
+         (let [t (degToRad (- 90 angle))]
+           [t (Math/cos t) (Math/sin t) 1])
+         (and (>= angle 90)
+              (<= angle 180))
+         (let [t (degToRad (- angle 90))]
+           [t (Math/cos t) (- (Math/sin t)) 2])
+         (and (>= angle 180)
+              (<= angle 270))
+         (let [t (degToRad (- 270 angle))]
+           [t (- (Math/cos t)) (- (Math/sin t)) 3])
+         (and (>= angle 270)
+              (<= angle 360))
+         (let [t (degToRad (- angle 270))]
+           [t (- (Math/cos t)) (Math/sin t) 4])))
+    [(* x hypot) (* y hypot) q])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn normalizeDeg "" [deg]
+  (if (> deg 360)
+    (rem deg 360)
+    (if (< deg 0)
+      (- 360 (rem (- deg) 360)) deg)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hh "" [r] (* r.height 0.5))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hw "" [r] (* r.width 0.5))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn radToDeg "" [rad] (* 180 (/ rad Math/PI)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn degToRad "" [deg] (* deg (/ Math/PI 180)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getImage "" [cfg key] (fixUrl (get-in cfg [:assets :images key])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getPList "" [cfg key] (fixUrl (get-in cfg [:assets :plists key])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getSheet "" [cfg key] (fixUrl (get-in cfg [:assets :sheets key])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getSfx "" [cfg key] (fixUrl (get-in cfg [:assets :sounds key])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getTile "" [cfg key] (fixUrl (get-in cfg [:assets :tiles key])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getFont "" [cfg key] (fixUrl (get-in cfg [:assets :fonts key])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn toggleSfx "" [cfg & [override?]]
+  (update-in! cfg
+              [:sound :open]
+              #(if (def? override?) override? (not %1))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxPlayMusic "" [cfg key & [options]]
+  (when (get-in cfg [:sound :open])
+    (var {:keys [vol repeat?]} options)
+    (if (number? vol) (sfxMusicVol vol))
+    (.playMusic cc/audioEngine
+                (getSfx cfg key) repeat?)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxPlayEffect "" [cfg key & [options]]
+  (when (get-in cfg [:sound :open])
+    (var {:keys [vol repeat?]} options)
+    (if (number? vol) (sfxMusicVol vol))
+    (.playEffect cc/audioEngine
+                 (getSfx cfg key) repeat?)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxMusicVol "" [cfg vol]
+  (if (and (get-in cfg [:sound :open?])
+           (number? vol))
+    (.setMusicVolume cc/audioEngine vol)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxCancel "" []
+  (.stopMusic cc/audioEngine)
+  (.stopAllEffects cc/audioEngine))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxInit "" [cfg]
+  (update-in! cfg [:sound :open?] #(true))
+  (sfxMusicVol cfg (get-in cfg [:sound :volume])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn fixUrl "" [url]
+  (if cc.sys.isNative
+    (sanitizeUrlForDevice url) (sanitizeUrlForWeb url)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sanitizeUrlForDevice "" [url]
+  (-> (cond (.match url #/^res\//)
+            (if (contains? url "/sfx/")
+              (let [ss (.split url "/")
+                    t (nth ss 1)]
+                (aset ss 1 "sfx" 2 t)
+                (.join ss "/"))
+              (.slice url 4))
+            (.match url #/^game/)
+            (str "src" (.slice url 4)))
+      (Mustache.render
+        `{"border-tiles" (get-in cfg [:game :borderTiles])
+          "lang" (get-in cfg [:game :lang])
+          "color" (get-in cfg [:game :color])
+          "appid" (get cfg :appid) })))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sanitizeUrlForWeb "" [url]
+  ;;ensure we tell mustache not to escape html
+  (-> (cond (.match url #/^game/)
+            (str "{{{gamesource-ref}}}/" url)
+            (.match url #/^res/)
+            (str "{{{media-ref}}}/" url))
+      (Mustache.render
+        `{"border-tiles" (get-in cfg [:game :borderTiles])
+          "gamesource-ref" "/public/ig/lib"
+          "media-ref" "/public/ig"
+          "lang" (get-in cfg [:game :lang])
+          "color" (get-in cfg [:game :color])
+          "appid" (get cfg :appid) })))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn throttle "" [func wait & [options]]
+  (var timeout nil previous 0
+       {:keys [leading trailing]} options)
+  (var~ context args result)
+  (var later
+       (fn [] (set! previous (if (false? leading) 0 (nowMillis))
+                    timeout nil
+                    result (apply func context args))
+         (when-not timeout (set! context nil args nil))))
+  (fn []
+    (var now (nowMillis))
+    (var~ remaining)
+    (if (and (not previous)
+             (false? leading)) (set! previous now))
+    (set! remaining (- wait (- now previous)))
+    (set! args arguments context this)
+    (cond
+      (or (<= remaining 0)
+          (> remaining wait))
+      (do (clearTimeout timeout)
+          (set! timeout nil
+                previous now
+                result (apply func context args))
+          (if-not timeout (set! context nil args nil)))
+      (and (not timeout)(not= false trailing))
+      (set! timeout (setTimeout later remaining)))
+    result))
+
+
