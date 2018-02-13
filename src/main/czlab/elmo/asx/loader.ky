@@ -1,0 +1,116 @@
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.elmo.asx.loader
+  (:require ["kirby" :as K :refer [opt??]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro defcz "" [name par & more] `(const ~name (.extend ~par ~@more)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- *instance* nil)
+(const *chunk* 36)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz XLoader cc/Scene
+  `{ctor (fn []
+           (._super this)
+           (set! @@bgLayer (new cc/LayerColor
+                                cc/Color.prototype.BLACK))
+           (.setPosition @@bgLayer 0 0)
+           (.addChild this @@bgLayer) this)
+    pkLoad #(let [cw  (cx/vcenter)
+                  pfx "/public/res/"
+                  s1 nil
+                  s2 nil]
+              (if cc.sys.isNative (set! pfx ""))
+              (.unschedule this this.pkLoad)
+              ;; logo
+              (set! @@logoSprite (new cc/Sprite (str pfx "cocos2d/pics/ZotohLab.png")))
+              ;;this.logoSprite.setScale( cc.contentScaleFactor());
+              (.setPosition logoSpritw cw)
+              (.addChild @@bgLayer logoSprite)
+              ;; progress bar
+              (set! @@progress
+                    (new cc/ProgressTimer
+                         (new cc/Sprite (str pfx "cocos2d/pics/preloader_bar.png"))))
+              (.setType @@progress cc/ProgressTimer.TYPE_BAR)
+              (.setScaleX @@progress 0.8)
+              (.setScaleY @@progress 0.3)
+              ;;this.progress.setOpacity(0);
+              ;;this.progress.setPercentage(0);
+              (.setPosition @@progress
+                            (.getPositionX @@logoSprite)
+                            (- cw.y (* 0.6 (getHeight @@logoSprite))))
+              (.addChild @@bgLayer @@progress)
+              (.pkStartLoading this))
+    onEnter (fn [] (.call cc.Node.prototype.onEnter this)
+                   (.schedule this this.pkLoad 0.3))
+    onExit #(.call cc.Node.prototype.onExit this)
+
+    initWithResources (fn [resources selector target]
+                        (assign! this
+                                 :resources resources
+                                 :selector selector
+                                 :target target))
+
+    niceFadeOut
+    (fn []
+      (.unscheduleUpdate this)
+      (.runAction @@logoSprite
+                  (.create cc/Sequence
+                           (.create cc/FadeOut 1.2)
+                           (.create cc/CallFunc @@selector @@target))))
+    ;; we have to load chunk by chunk because the array of resources
+    ;; can't be too big, else jsb complains
+    loadChunk
+    (fn []
+      (var res @@resources
+           me this
+           s (_1 @@_pres)
+           e (_2 @@_pres))
+      (.load cc/loader
+             (.slice res s e)
+             (fn [result total cnt] (+= me._count 1))
+             (fn [] (aset me._pres 2 #t))))
+
+    ;; loading. step1
+    pkStartLoading
+    (fn []
+      (var res @@resources me this)
+      ;;[head, tail, state] snapshot info used by
+      ;;each iteration as we chunk up the unput
+      (set! @@_pres [0 (Math/min *chunk* (alen res)) #f]
+            @@_count 0)
+      (.schedule this this.update 0.25)
+      (.loadChunk this))
+    update
+    (fn []
+      (var len (alen @@resources)
+           cnt @@_count
+           ratio (/ cnt len)
+           s nil
+           e nil
+           perc (Math/min (* ratio 100) 100))
+      (.setPercentage @@progress perc)
+      (cond
+        (>= cnt len) ;; done
+        (do (.unscheduleUpdate this)
+            (.niceFadeOut this))
+        (true? (nth @@_pres 2))
+        (do (set! s (_2 @@_pres)
+                  e (+ s (Math/min *chunk*  (- len s))))
+            (aset @@_pres 0 s 1 e 2 #f)
+            (.loadChunk this))))})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn preload "" [resources selector target]
+  (if-not *instance* (set! *instance* (new XLoader)))
+  (.initWithResources *instance* resources selector target)
+  (.runScene cc/director *instance*)
+  *instance*)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+

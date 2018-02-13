@@ -168,7 +168,6 @@
        x (+ rect.x (* dt vel.x))
        sz (div2 rect.height)
        sw (div2 rect.width)
-       hit? #f
        vx vel.x
        vy vel.y)
   (cond (> (+ y sz) bbox.top) ;;hitting top wall
@@ -345,37 +344,38 @@
           mi (new cc/MenuItemLabel
                   (new cc/LabelBMFont obj.text obj.font) obj.selector obj.target))
     (.setOpacity mi (* 255 0.9))
-    (.setScale mi (or scale 1))
+    (.setScale mi (opt?? scale 1))
     (.setTag mi (+1 i))
     (.addChild menu mi)) menu)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tmenu1 "" [item]
   (var menu (tmenu item))
-  (if item.anchor
+  (if (def? item.anchor)
     (.setAnchorPoint menu item.anchor))
-  (if item.pos
-    (.setPosition menu item.pos))
-  (if-not item.visible
-    (.setVisible menu false))
-  (.alignItemsVertically menu) menu)
+  (if (def? item.x)
+    (.setPosition menu item.x item.y))
+  (.alignItemsVertically menu)
+  (if (false? item.visible) (.setVisible menu #f)) menu)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vmenu "" [items & [options]]
+  (set! options (opt?? options `{}))
   (var m (pmenu #t
                 items
-                (get options :scale)
-                (get options :padding)))
-  (if (def? (get options :x))
-      (.setPosition m options.x options.y)) m)
+                options.scale
+                options.padding))
+  (if (def? options.x)
+    (.setPosition m options.x options.y)) m)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hmenu "" [items &[options]]
+  (set! options (opt?? options `{}))
   (var m (pmenu #f
                 items
-                (get options :scale)
-                (get options :padding)))
-  (if (def? (get options x))
+                options.scale
+                options.padding))
+  (if (def? options.x)
     (.setPosition m options.x options.y)) m)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -402,8 +402,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pmenu1 "" [item]
-  (var menu (pmenu #true [item]))
-  (if item.anchor
+  (var menu (pmenu #t [item]))
+  (if (def? item.anchor)
     (.setAnchorPoint menu item.anchor))
   (if (def? item.x)
     (.setPosition menu item.x item.y))
