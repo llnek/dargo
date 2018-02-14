@@ -159,239 +159,96 @@
     (._super this)
     (assign! this :lastTag 0 :lastZix 0)))
 
-/**
- * @extends module:zotohlab/asx/scenes~XLayer
- * @class XMenuLayer
- */
-const XMenuLayer= XLayer.extend({
-  /**
-   * @memberof module:zotohlab/asx/scenes~XMenuLayer
-   * @method rtti
-   * @return {String}
-   */
-  rtti() { return 'XMenuLayer'; },
-  /**
-   * @memberof module:zotohlab/asx/scenes~XMenuLayer
-   * @method mkBackQuit
-   * @protected
-   */
-  mkBackQuit(vert, btns, posfn) {
-    let sz, menu;
-    if (vert) {
-      menu = ccsx.vmenu(btns);
-    } else {
-      menu= ccsx.hmenu(btns);
-    }
-    sz= menu.getChildren()[0].getContentSize();
-    if (posfn) {
-      posfn(menu, sz);
-    }
-    this.addItem(menu);
-  },
-  /**
-   * @memberof module:zotohlab/asx/scenes~XMenuLayer
-   * @method mkAudio
-   * @protected
-   */
-  mkAudio(options) {
-    this.addAudioIcon(options);
-  }
-});
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz XMenuLayer XLayer
+  rtti #("XMenuLayer")
+  mkBackQuit
+  (fn [vert btns posfn]
+    (var menu (if vert? (cx/vmenu btns) (cx/hmenu btns))
+         sz (-> (_1 (.getChildren menu)) (.getContentSize)))
+    (if posfn (posfn menu sz))
+    (.addItem this menu))
 
-//////////////////////////////////////////////////////////////////////////////
-/**
- * @extends XLayer
- * @class XGameHUDLayer
- */
-const XGameHUDLayer = XLayer.extend({
+  mkAudio #(.addAudioIcon this %1 %2 %3))
 
-  /**
-   * Get the id.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method rtti
-   * @return {String}
-   */
-  rtti() { return 'HUD'; },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz XGameHUDLayer XLayer
+  rtti #( "HUD")
+  removeIcon #(.removeItem this %1)
+  addIcon
+  (fn [icon & [zx idx]]
+    (.addItem this (.hud this) icon zx idx))
+  hud #(@@atlasId)
+  setup
+  (fn []
+    (assign! this
+             :scoreLabel nil
+             :lives nil
+             :score 0
+             :replayBtn nil)
+    (.initAtlases this)
+    (.initIcons this)
+    (.initLabels this)
+    (.initCtrlBtns this))
 
-  /**
-   * Remove this icon.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method removeIcon
-   * @param {Object} icon
-   */
-  removeIcon(icon) {
-    this.removeAtlasItem(this.hudAtlas(), icon);
-  },
+  initAtlases #()
+  initIcons #()
+  initLabels #()
+  initCtrlBtns
+  (fn []
+    (var opts this.options.replay)
+    (if opts
+      (.addReplayIcon this (cx/pmenu1 opts) opts.where))
+    (set! opts this.options.i_menu)
+    (if opts
+      (.addMenuIcon this (cx/pmenu1 opts) opts.where)))
 
-  /**
-   * Add an icon.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method addIcon
-   * @param {Object} icon
-   * @param {Number} z
-   * @param {Number} idx
-   */
-  addIcon(icon, z, idx) {
-    this.addAtlasItem(this.hudAtlas(), icon, z, idx);
-  },
+  getScore #(@@score)
+  resetAsNew #(.reset this)
+  reset
+  (fn []
+    (.disableReplay this)
+    (set! @@score 0)
+    (if @@lives
+      (.resurrect @@lives)))
 
-  hudAtlas() {
-    return this.atlasId;
-  },
+  reduceLives
+  (fn [x]
+    (.reduce @@lives x)
+    (.isDead? @@lives))
 
-  /**
-   * @protected
-   */
-  setup() {
-    //this._super();
-    this.atlasId = this.options.hudAtlas || 'game-pics';
-    this.scoreLabel = null;
-    this.lives= null;
-    this.score= 0;
-    this.replayBtn = null;
+  updateScore
+  (fn [n]
+    (+= @@score n)
+    (.setString @@scoreLabel (numStr @@score)))
 
-    this.initAtlases();
-    this.initIcons();
-    this.initLabels();
-    this.initCtrlBtns();
-  },
+  disableReplay #(.setVisible @@replayBtn #f)
+  enableReplay #(.setVisible @@replayBtn #t)
 
-  initAtlases: sjs.NILFUNC,
-  initIcons: sjs.NILFUNC,
-  initLabels: sjs.NILFUNC,
+  addMenuIcon
+  (fn [menu where]
+    (var c (.getChildByTag menu 1)
+         hh (div2 (cx/getScaledHeight c))
+         hw (div2 (cx/getScaledWidth c))
+         wz (cx/vbox)
+         y (if (= where *anchorr*.Bottom)
+             (+ wz.bottom  csts.TILE hh)
+             (- wz.top csts.TILE hh)))
+    (.setPosition menu (- wz.right csts.TILE hw) y)
+    (.addItem this menu))
 
-  /**
-   * @protected
-   */
-  initCtrlBtns() {
-    let opts = this.options.i_replay;
-
-    if (!!opts) {
-      this.addReplayIcon(ccsx.pmenu1(opts), opts.where);
-    }
-
-    opts= this.options.i_menu;
-    if (!!opts) {
-      this.addMenuIcon(ccsx.pmenu1(opts), opts.where);
-    }
-  },
-
-  /**
-   * Get the score.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method getScore
-   * @return {Number}
-   */
-  getScore() { return this.score; },
-  /**
-   * Reset the HUD as a new game.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method resetAsNew
-   */
-  resetAsNew() {
-    this.reset();
-  },
-  /**
-   * Reset the HUD.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method reset
-   */
-  reset() {
-    this.disableReplay();
-    this.score= 0;
-    if (this.lives) {
-      this.lives.resurrect();
-    }
-  },
-
-  /**
-   * Reduce x amount of lives.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method reduceLives
-   * @param {Number} x
-   * @return {Boolean} - true if no more lives.
-   */
-  reduceLives(x) {
-    this.lives.reduce(x);
-    return this.lives.isDead();
-  },
-
-  /**
-   * Update the score.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method updateScore
-   * @param {Number}
-   */
-  updateScore(num) {
-    this.score += num;
-    this.scoreLabel.setString(Number(this.score).toString());
-  },
-
-  /**
-   * Disable the replay button.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method disableReplay
-   */
-  disableReplay() {
-    this.replayBtn.setVisible(false);
-  },
-
-  /**
-   * Enable the replay button.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method enableReplay
-   */
-  enableReplay() {
-    this.replayBtn.setVisible(true);
-  },
-
-  /**
-   * Add the main menu icon.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method addMenuItem
-   * @param {cc.Menu} menu
-   * @param {Object} where
-   */
-  addMenuIcon(menu, where) {
-    let c= menu.getChildByTag(1),
-    hh = ccsx.getScaledHeight(c) * 0.5,
-    hw = ccsx.getScaledWidth(c) * 0.5,
-    wz= ccsx.vbox(),
-    x,y;
-
-    if (where === ccsx.acs.Bottom) {
-      y = wz.bottom + csts.TILE  + hh;
-    } else {
-      y = wz.top - csts.TILE - hh;
-    }
-    menu.setPosition(wz.right - csts.TILE - hw, y);
-    this.addItem(menu);
-  },
-  /**
-   * Add a replay icon.
-   * @memberof module:zotohlab/asx/scenes~XGameHUDLayer
-   * @method addReplayIcon
-   * @param {cc.Menu} menu
-   * @param {Object} where
-   */
-  addReplayIcon(menu, where) {
-    let c= menu.getChildByTag(1),
-    hh = ccsx.getScaledHeight(c) * 0.5,
-    hw = ccsx.getScaledWidth(c) * 0.5,
-    wz= ccsx.vbox(),
-    x, y;
-
-    if (where === ccsx.acs.Bottom) {
-      y = wz.bottom + csts.TILE  + hh;
-    } else {
-      y = wz.top - csts.TILE  - hh;
-    }
-    menu.setPosition(wz.left + csts.TILE + hw, y);
-    this.replayBtn=menu;
-    this.addItem(menu);
-  }
-
-});
+  addReplayIcon
+  (fn [menu where]
+    (var c (.getChildByTag menu 1)
+         hh (div2 (cx/getScaledHeight c))
+         hw (div2 (cx/getScaledWidth c))
+         wz (cx/vbox)
+         y (if (= where *anchors*.Bottom)
+             (+ wz.bottom  csts.TILE  hh)
+             (- wz.top csts.TILE hh)))
+    (.setPosition menu (+ wz.left csts.TILE hw) y)
+    (set! @@replayBtn menu)
+    (.addItem this menu)))
 
 //////////////////////////////////////////////////////////////////////////////
 /**
