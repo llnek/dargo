@@ -1,12 +1,40 @@
 
 (ns czlab.elmo.core.asx)
 
-(defmacro defclass "" [name parent & more]
+(defmacro defcz "" [name parent & more]
   `(const ~name (.extend ~parent (object ~@more))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- SEED (atom 0))
 
-(defclass
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz Vector2 cc/Class
+  mult (fn [n] (new Vector2 0 0 (* n @@x) (* n @@y)))
+  rotate (fn [cx cy deg]
+           (var rad (degToRad deg))
+           (set! @@x
+                 (+ cx (- (* (Math/cos rad) (- @@x cx))
+                             (* (Math/sin rad) (- @@y y0))))
+                 @@y
+                 (+ cy (+ (* (Math/sin rad) (- @@x cx))
+                          (* (Math/cos rad) (- @@y y0))))))
+  length #(Math/sqrt (+ (* @@x @@x) (* @@y @@y)))
+
+  toString #(str "[" @@x "," @@y "]")
+
+  plus (fn [v2] (new Vector2 0 0 (+ @@x v2.x) (+ @@y v2.y)))
+
+  minus (fn [v2] (new Vector2 0 0 (- @@x v2.x) (- @@y v2.y)))
+
+  ctor (fn [x1 y1 x2 y2]
+         (._super this)
+         (assign! this :x (- x2 x1) :y (- y2 y1))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn  createVect2 "" [x1 y1 x2 y2] (new Vector2 x1 y1 x2 y2))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz
   Health
   cc.Class
   ctor
@@ -17,7 +45,7 @@
   (fn [damage from]
     (-= @@HP (if (number? damage) damage 1)) this))
 
-(defclass
+(defcz
   UIObj
   cc.Class
   inflate

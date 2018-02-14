@@ -1,0 +1,75 @@
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.elmo.core.negamax
+
+  (:require ["kirby" :as K :refer [opt??]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- *pinf* 1000000)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- negamax* "" [board game maxDepth depth alpha beta]
+  (var openMoves (.getNextMoves board game)
+       bestValue (- *pinf*)
+       bestMove (_1 openMoves))
+  (var~ rc move)
+  (if (= depth maxDepth)
+    (set! game.lastBestMove (_1 openMoves)))
+  (for [n 0 sz (n# openMoves)
+        :while (< n sz) :recur (+1 n)]
+    (set! move (.@n openMoves))
+    (.makeMove board game move)
+    (.switchPlayer board game)
+    (set! rc (- (negamax board
+                         game
+                         maxDepth
+                         (-1 depth) (- beta) (- alpha))))
+    (.switchPlayer board game)
+    (.unmakeMove board game move)
+    (set! bestValue (Math/max bestValue rc))
+    (when (< alpha rc)
+      (set! alpha rc bestMove move)
+      (if (= depth maxDepth)
+        (set! game.lastBestMove move))
+      (if (>= alpha beta) (break-out-of-loop!))))
+  bestValue)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn negamax "" [board game maxDepth depth alpha beta]
+  (if (or (zero? depth)
+          (.isOver board game))
+    (.evalScore board game)
+    (negamax* board game maxDepth depth alpha beta)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz GameBoard cc/Class
+  isOver (fn [game] #f)
+  evalScore (fn [game] 0)
+  getNextMoves (fn [game] [])
+  makeMove (fn [game move] )
+  switchPlayer (fn [game] )
+  takeSnapshot #(nil)
+  unmakeMove (fn [game move] ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz NegaMax
+  cc/Class
+  getGameBoard #(@@board)
+  ctor (fn [board]
+         (._super this)
+         (set! @@board board))
+  eval (fn []
+         (var snapshot (.takeSnapshot @@board))
+         (negamax @@board snapshot 10 10 (- *pinf*) *pin*)
+         (.-lastBestMove snapshot)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz Snapshot cc/Class
+  ctor (fn []
+         (._super this)
+         (assign! this
+                  :lastBestMove nil :other nil :cur nil :state nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;EOF
+
