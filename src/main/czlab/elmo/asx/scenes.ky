@@ -1,4 +1,12 @@
 
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+
+  czlab.elmo.core.scenes
+
+  (:require ["kirby" :as K :refer [opt??]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defcz XLive cc/Sprite
   ctor (fn [x y png & [options]]
          (._super this)
@@ -132,12 +140,6 @@
 
   addItem
   (fn [n parent & [zx tag]]
-    if (! sjs.echt(pzx)) {
-      pzx = this.lastZix;
-    }
-    if (! sjs.echt(ptag)) {
-      ptag = ++this.lastTag;
-    }
     (if (and (inst? cc/SpriteBatchNode parent)
              (inst? cc/Sprite n))
       (.setBatchNode n parent))
@@ -250,387 +252,124 @@
     (set! @@replayBtn menu)
     (.addItem this menu)))
 
-//////////////////////////////////////////////////////////////////////////////
-/**
- * @extends XLayer
- * @class XGameLayer
- */
-const XGameLayer = XLayer.extend({
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method pkInput
-   * @protected
-   */
-  pkInput() {
-    //ccsx.onKeyPolls(this.keyboard);
-    //ccsx.onTouchOne(this.ebus);
-    //ccsx.onMouse(this.ebus);
-  },
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method getLCfg
-   * @return {Object}
-   */
-  getLCfg() {
-    return sh.getLevelCfg(this.level);
-  },
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method signal
-   * @protected
-   * @param {String} topic
-   * @param {Function} cb
-   */
-  signal(topic, cb) {
-    this.ebus.on(topic,cb);
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz XGameLayer XLayer
+  pkInput #()
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method keyPoll
-   * @protected
-   * @param {Number} key
-   */
-  keyPoll(key){
-    return this.keyboard[key];
-  },
-  /**
-   * @method initEngine
-   * @protected
-   */
-  initEngine(syss, fact) {
-    this.engine = this.newFlow();
-    if (sjs.isfunc(fact)) {
-      fact(this.engine, this.options);
-    }
-    R.forEach( z => {
-      this.engine.addSystem(new (z)(this.options), z.Priority);
-    }, R.filter( x => {
-      return sjs.isfunc(x);
-    }, syss));
-  },
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method getEnclosureBox
-   * @return {Object} rect box.
-   */
-  getEnclosureBox() {
-    return ccsx.vbox();
-    /*
-    var csts = xcfg.csts,
-    wz = ccsx.vrect();
-    return { top: wz.height - csts.TILE,
-             left: csts.TILE,
-             bottom: csts.TILE,
-             right: wz.width - csts.TILE };
-     * */
-  },
+  getLCfg #(get-in *cfg* [:levels @@level])
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method setGameMode
-   * @param {Number} mode
-   */
-  setGameMode(mode) {
-    xcfg.csts.GAME_MODE=mode;
-  },
+  signal (fn [topic cb] (.on @@ebus topic cb))
 
-  /**
-   * Reset and create new Ash Engine.
-   *
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method newFlow
-   */
-  newFlow() {
-    return this.engine= new Ash.Engine();
-  },
+  keyPoll #(nth @@keys %1)
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method newGame
-   * @param {Number} mode
-   */
-  newGame(mode) {
-    if (xcfg.sound.open) {
-      cc.audioEngine.stopAllEffects();
-      cc.audioEngine.stopMusic();
-    }
-    this.onNewGame(mode);
-    this.scheduleUpdate();
-  },
+  initEngine
+  (fn [syss fact]
+    (set! @@engine (new ecs/Engine))
+    (if (fn? fact)
+      (fact @@engine @@options))
+    (each #(.addSystem @@engine %1) syss))
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method setup
-   * @protected
-   */
-  setup() {
-    const m= this.options.mode;
-    if (m === sh.gtypes.ONLINE_GAME ||
-        m === sh.gtypes.P2_GAME ||
-        m === sh.gtypes.P1_GAME) {
-      this.newGame(m);
-    }
-  },
+  getEnclosureBox #(cx/vbox)
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method operational
-   * @return {Boolean}
-   */
-  operational() { return true; },
+  setGameMode
+  (fn [mode]
+    (update-in! *cfg*
+                [:csts :GAME-MODE] #(mode)))
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method getBackgd
-   * @return {cc.Layer} - background layer
-   */
-  getBackgd() {
-    const rc= this.ptScene.getLayers();
-    return rc['BackLayer'];
-  },
+  newGame
+  (fn [mode]
+    (cx/stopAudio)
+    (@@onNewGame mode)
+    (@@scheduleUpdate))
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method getHUD
-   * @return {cc.Layer}  the HUD layer
-   */
-  getHUD() {
-    const rc= this.ptScene.getLayers();
-    return rc['HUD'];
-  },
+  setup #(@@newGame )
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method update
-   */
-  update(dt) {
-    if (this.operational()  && !!this.engine) {
-      this.engine.update(dt);
-    }
-  },
+  operational #(true)
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method keys
-   * @return {Array}  keys
-   */
-  keys() { return this.keyboard; },
+  getBackgd #(get (.getLayers @@ptScene) :BackLayer)
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method rtti
-   * @return {String}  id
-   */
-  rtti() { return 'GameLayer'; },
+  getHUD #(get (.getLayers @@ptScene) :HUD)
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XGameLayer
-   * @method ctor
-   * @param {Object} options
-   */
-  ctor(options) {
-    this.ebus= ebus.reify();
-    this._super(options);
-    this.keyboard= [];
-    this.players= [];
-    this.level= 1;
-    this.actor= null;
-    sh.main = this;
-    const vbox= ccsx.vbox();
-    sjs.loggr.debug('cc.view: vbox: left: ' + vbox.left +
-                    ', bottom: ' + vbox.bottom +
-                    ', top: ' + vbox.top +
-                    ', right: ' + vbox.right);
-  }
+  update #(if (@@operational)
+            (.update @@engine %1))
 
-});
+  keys #(@@keyboard)
 
-//////////////////////////////////////////////////////////////////////////////
-/**
- * @extends cc.Scene
- * @class XScene
- */
-const XScene = cc.Scene.extend({
+  rtti #("GameLayer")
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XScene
-   * @method getLayers
-   * @return {Array}
-   */
-  getLayers() {
-    return this.layers;
-  },
+  ctor
+  (fn [options]
+    (._super this)
+    (assign! this
+             :ebus (new Ebus)
+             :keyboard (K/fillArray 256 #f)
+             :players= (K/fillArray 3 nil)
+             :level 1
+             :actor nil)))
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XScene
-   * @method init
-   */
-  init() {
-    if (this._super()) {
-      this.createLayers();
-      return true;
-    } else {
-      return false;
-    }
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz XScene cc/Scene
+  getLayers #(@@layers)
+  init #(if (._super this)
+          (do->true (@@createLayers)))
+  createLayers
+  (fn []
+    (var a (or @@lays []))
+    (var~ glptr rc obj)
+    ;;hold off init'ing game layer, leave that as last
+    (each
+      (fn [p]
+        (set! obj (new p this.options))
+        (if (inst? XGameLayer obj)
+          (set! glptr obj)
+          (if (inst? XLayer obj) (.init obj)))
+        (if (inst? XLayer obj)
+          (.setParentScene obj this))
+        (assign! @@layers (.rtti obj) obj)
+        (@@addChild obj))
+      (or @@lays []))
+    (if glptr (.init glptr)))
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XScene
-   * @method createLayers
-   */
-  createLayers() {
-    let a = this.lays || [],
-    glptr = undef,
-    rc,
-    obj;
-    //hold off init'ing game layer, leave that as last
-    rc = R.any((proto) => {
-      obj= new (proto)(this.options);
-      if ( obj instanceof XGameLayer ) {
-        glptr = obj;
-      }
-      else
-      if (obj instanceof XLayer) {
-        obj.init();
-      }
+  onmsg #(do->this (.on @@ebus %1 %2))
 
-      if (obj instanceof XLayer) {
-        obj.setParentScene(this);
-      }
+  ctor
+  (fn [ls options]
+    (._super this)
+    (assign! this
+             :lays (or ls [])
+             :layers `{}
+             :ebus (new Ebus))))
 
-      this.layers[ obj.rtti() ] = obj;
-      this.addChild(obj);
-      return false;
-    }, a);
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz XSceneFactory cc/Class
+  create
+  (fn [options]
+    (var itemKey :layers
+         scene nil
+         cfg nil
+         arr @@layers)
+    (set! options (or options `{})
+          cfg options)
+    (when (and (contains? options itemKey)
+               (array? options.layers))
+      (set! arr options.layers
+            cfg (K/dissoc options itemKey)))
+    (set! scene (new XScene arr cfg))
+    (.init scene)
+    scene)
 
-    if (a.length > 0 && rc===false ) {
-      if (!!glptr) {
-        glptr.init();
-      }
-    }
-  },
+  ctor
+  (fn [ls]
+    (._super this)
+    (set! @@layers (or ls []))))
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XScene
-   * @method onmsg
-   * @chainable
-   * @param {String} topic
-   * @param {Function} cb
-   * @return {cc.Scene}
-   */
-  onmsg(topic, cb) {
-    this.ebus.on(topic, cb);
-    return this;
-  },
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn showMenu "" []
+  (.pushScene cc/director
+              (.create
+                sh.ptypes.mmenu
+                `{ onback #(.popScene cc/director) })))
 
-  /**
-   * @memberof module:zotohlab/asx/scenes~XScene
-   * @method ctor
-   * @param {Array} ls - list of layers
-   * @param {Object} options
-   */
-  ctor(ls, options) {
-    this.options = options || {};
-    this._super();
-    this.lays= ls || [];
-    this.layers= {};
-    this.ebus= ebus.reify();
-  }
-
-});
-
-//////////////////////////////////////////////////////////////////////////////
-/**
- * @class XSceneFactory
- */
-class XSceneFactory extends sjs.ES6Claxx {
-
-  /**
-   * @memberof module:zotohlab/asx/scenes~XSceneFactory
-   * @method reify
-   * @param {Object} options
-   * @return {cc.Scene}
-   */
-  reify(options) {
-    let itemKey= 'layers',
-    arr= this.layers,
-    cfg;
-    if (options && sjs.hasKey(options, itemKey ) &&
-        sjs.isarr(options.layers)) {
-      arr= options.layers;
-      cfg= R.omit(itemKey, options);
-    } else {
-      cfg= options || {};
-    }
-    const scene = new XScene(arr, cfg);
-    scene.init()
-    return scene;
-  }
-
-  /**
-   * @memberof module:zotohlab/asx/scenes~XSceneFactory
-   * @method constructor
-   * @param {Array} list of layers
-   */
-  constructor(ls) {
-    super();
-    this.layers= ls || [];
-  }
-
-}
-
-/** @alias module:zotohlab/asx/scenes */
-const xbox= /** @lends xbox# */{
-  /**
-   * @property {XMenuLayer} XMenuLayer
-   */
-  XMenuLayer: XMenuLayer,
-  /**
-   * @property {XGameHUDLayer} XGameHUDLayer
-   */
-  XGameHUDLayer: XGameHUDLayer,
-  /**
-   * @property {XGameLayer} XGameLayer
-   */
-  XGameLayer: XGameLayer,
-  /**
-   * @property {XLayer} XLayer
-   */
-  XLayer: XLayer,
-  /**
-   * @property {XLive} XLive
-   */
-  XLive: XLive,
-  /**
-   * @property {XHUDLives} XHUDLives
-   */
-  XHUDLives: XHUDLives,
-
-  /**
-   * @property {XSceneFactory} XSceneFactory
-   */
-  XSceneFactory: XSceneFactory,
-  /**
-   * @property {XScene} XScene
-   */
-  XScene: XScene,
-  /**
-   * @method showMenu
-   */
-  showMenu() {
-    const dir= cc.director;
-    dir.pushScene(sh.protos[sh.ptypes.mmenu].reify({
-      onback() { dir.popScene(); }
-    }));
-  }
-};
-
-sjs.merge(exports, xbox);
-/*@@
-return xbox;
-@@*/
-
-//////////////////////////////////////////////////////////////////////////////
-//EOF
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;EOF
 
