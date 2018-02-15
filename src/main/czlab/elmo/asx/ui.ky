@@ -1,3 +1,6 @@
+(ns czlab.elmo.core.ui)
+
+(defmacro defcz "" [name par & more] `(const ~name (.extend ~par (object ~@more ))))
 
 (defcz Circle cc/Class
   draw
@@ -28,90 +31,18 @@
     (._super this)
     (assign! this :x1 x1 :y1 y1 :x2 x2 :y2 y2)))
 
-/**
- * @class Point
- */
-class Point extends sjs.ES6Claxx {
-  /**
-   * @memberof module:zotohlab/asx/ui~Point
-   * @method constructor
-   * @param {Number} x
-   * @param {Number} y
-   */
-  constructor(x,y) {
-    super();
-    this.y=y;
-    this.x=x;
-  }
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz TextStyle cc/Class
+  ctor
+  (fn []
+    (._super this)
+    (assign! this
+             :align :left
+             :base :top
+             :fill "#dddddd"
+             :font "14px 'Architects Daughter'")))
 
-/**
- * @class Area
- */
-class Area extends sjs.ES6Claxx {
-  /**
-   * @memberof module:zotohlab/asx/ui~Area
-   * @method constructor
-   * @param {Number} x
-   * @param {Number} y
-   * @param {Number} width
-   * @param {Number} height
-   */
-  constructor(x,y,width,height) {
-    super();
-    this.pos= new Point(x,y);
-    this.height=height;
-    this.width=width;
-  }
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
-/**
- * @class TextStyle
- */
-class TextStyle extends sjs.ES6Claxx {
-  /**
-   * @memberof module:zotohlab/asx/ui~TextStyle
-   * @method constructor
-   */
-  constructor() {
-    super();
-    this.font = "14px 'Architects Daughter'";
-    this.fill = "#dddddd";
-    this.align = "left";
-    this.base = "top";
-  }
-
-}
-
-/** @alias module:zotohlab/asx/ui */
-const xbox= /** @lends xbox# */{
-  /**
-   * @property {TextStyle} TextStyle
-   */
-  TextStyle: TextStyle,
-  /**
-   * @property {Circle} Circle
-   */
-  Circle: Circle,
-  /**
-   * @property {Line} Line
-   */
-  Line: Line,
-  /**
-   * @property {Point} Point
-   */
-  Point: Point,
-  /**
-   * @property {Area} Area
-   */
-  Area: Area
-};
-
-sjs.merge(exports, xbox);
-/*@@
-return xbox;
-@@*/
-
-//////////////////////////////////////////////////////////////////////////////
-//EOF
 

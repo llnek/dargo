@@ -1,0 +1,73 @@
+
+(ns czlab.elmo.core.cfg)
+
+(def
+  cfg
+  `{urlPrefix "/public/elmo/"
+    appid ""
+    color ""
+    resolution `{web cc.ResolutionPolicy.SHOW_ALL
+                 resDir "sd"}
+    levels `{}
+    assets `{images (object)
+             sheets (object)
+             tiles (object)
+             sounds `{startGame "res/cocos2d/sfx/PowerUp" }
+             fonts (object)}
+    game `{borderTiles "cbox-borders_x8.png"
+           start ptypes.start
+           preloadLevels? #t
+           scale 1
+           sfx :mp3
+           landscape? #f
+           gravity 0
+           version ""
+           trackingID "" }
+    smac nil
+    l10nTable
+    `{ en `{"%mobileStart"  "Press Anywhere To Start!"
+            "%webStart"  "Press Spacebar To Start!"
+            "%passwd"  "Password"
+            "%userid"  "UserId"
+            "%player2"  "Player 2"
+            "%player1"  "Player 1"
+            "%computer"  "Computer"
+            "%cpu"  "CPU"
+            "%2players"  "2 Players"
+            "%1player"  "1 Player"
+            "%online"  "Online"
+            "%gameover"  "Game Over"
+            "%quit!"  "Quit"
+            "%back"  "Back"
+            "%ok"  "OK"
+            "%mmenu"  "Main Menu"
+            "%replay"  "REPLAY"
+            "%play"  "PLAY"
+            "%waitothers"  "Waiting...\nfor other players."
+            "%waitother"  "Waiting...\nfor another player."
+            "%signinplay"  "Please sign in to play."
+            "%quit?"  "Continue and quit game?" }}
+
+    csts `{CV_X (.charCodeAt "X" 0)
+           CV_O (.charCodeAt "O" 0)
+           P2_COLOR "O"
+           P1_COLOR "X"
+           NETP   sh.gtypes.ONLINE_GAME
+           HUMAN  sh.gtypes.P1_GAME
+           BOT    sh.gtypes.P2_GAME
+           GAME_MODE sh.gtypes.P1_GAME
+           TILE 8
+           S_OFF 4
+           GAME_ID "" }
+    sound `{volume 0.5
+            open? #f
+            music `{volume 0.5
+                    track nil}}
+  handleResolution (fn [r] )
+
+  runOnce #() })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+

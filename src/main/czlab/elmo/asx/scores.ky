@@ -1,0 +1,67 @@
+
+(ns czlab.elmo.core.scores)
+
+(defmacro defcz "" [name par & more] `(const ~name (.extend ~par (object ~@more ))))
+
+(defn mkScore "" [n v]
+  `{value (Number (.trim v))
+    name (.trim n) })
+
+(defcz HighScores cc/Class
+  read
+  (fn []
+    (var s (or (Cookies/get @@KEY) ""))
+    (set! @@scores
+          (reduce
+            (fn [memo z]
+              (var a (.split z ":"))
+              (if (= 2 (n# a))
+                (conj! memo (mkScore (_1 a) (_2 a))) memo)) [] (.split s "|"))))
+  reset #(set! @@scores [])
+  write
+  (fn []
+    (var rc (map #(str (.-name %)
+                       ":"
+                       (.-value %)) @@scores))
+    (Cookies/set @@KEY (join "|" rc) @@duration))
+  hasSlots? #(< (n# @@scores) @@size)
+  canAdd?
+  (fn [score]
+    (if (@@hasSlots?)
+      #t
+      (some #(< (.-value %) score) @@scores)))
+  insert
+  (fn [name score]
+    (var s (mkScore (or name "???") score)
+         len (n# @@scores))
+    (when-not (@@hasSlots?)
+      (for [i (-1 len) :while (>= i 0) :recur (-1 i)]
+        (when (< (.-value (nth @@scores i)) score)
+          (.splice @@scores i 1)
+          (break-out-of-loop!))))
+    (when (@@hasSlots?)
+      (conj! @@scores s)
+      (@@sort)
+      (@@write)))
+  getScores #(@@scores)
+  sort
+  (fn []
+    (Array.prototype.sort
+      @@scores
+      (fn [a b]
+        (if (< a.value b.value) -1 (if (> a.value b.value) 1 0)))))
+  ctor
+  (fn [key size duration]
+    (._super this)
+    (assign! this
+             :duration (or duration (* 60 60 24 1000))
+             :size (or size 10)
+             :scores []
+             :KEY key)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn create "" [key size duration] (new HighScores))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+

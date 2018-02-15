@@ -1,0 +1,169 @@
+
+(ns czlab.elmo.core.odin)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro defcz "" [name par & more] `(const ~name (.extend ~par (object ~@more ))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const *OdinEvents* `{
+  ;;Msg types
+  MSG_NETWORK           1
+  MSG_SESSION           2
+
+  PLAYGAME_REQ          3
+  JOINGAME_REQ          4
+
+  PLAYREQ_NOK         10
+  JOINREQ_NOK         11
+  USER_NOK            12
+  GAME_NOK            13
+  ROOM_NOK            14
+  ROOM_FILLED         15
+  ROOMS_FULL          16
+
+  PLAYREQ_OK          30
+  JOINREQ_OK          31
+
+  AWAIT_START         40
+  SYNC_ARENA          45
+  POKE_RUMBLE         46
+
+  RESTART             50
+  START               51
+  STOP                52
+  POKE_MOVE           53
+  POKE_WAIT           54
+  PLAY_MOVE           55
+  REPLAY              56
+
+  QUIT_GAME           60
+
+  PLAYER_JOINED       90
+  STARTED             95
+  CONNECTED           98
+  ERROR               99
+  CLOSED              100
+
+  S_NOT_CONNECTED       0
+  S_CONNECTED           1 })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mkEvent "" [eventType code payload]
+  `{timeStamp (cx/nowMillis)
+    etype eventType
+    ecode code
+    source payload })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mkPlayRequest "" [game user pwd]
+  (mkEvent *OdinEvents*.PLAYGAME_REQ -1 [game user pwd]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mkJoinRequest "" [room user pwd]
+  (mkEvent *OdinEvents*.JOINGAME_REQ -1 [room user pwd]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn json_decode "" [e]
+  (var evt `{} src nil)
+  (trye!
+    (set! evt (ax/objectfy e.data)))
+  (if-not (contains? evt :etype)
+    (assign! evt :etype -1))
+  (if-not (contains? evt :ecode)
+    (assign! evt :ecode -1))
+  (if (and (contains? evt :source)
+           (string? evt.source))
+    (assign! evt :source (ax/objectfy evt.source)))
+  evt)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz Session cc/Class
+  connect #(@@wsock %)
+  ctor
+  (fn [config]
+    (assign! this
+             :state *OdinEvents*.S_NOT_CONNECTED
+             :options (or config `{})
+             :ebus (new Ebus)
+             :handlers []
+             :ws nil))
+  send #(if (and (= @@state *OdinEvents*.S_CONNECTED)
+                 (some? @@ws))
+          (.send @@ws (sjs/jsonfy %)))
+
+  listen
+  (fn [messageType event callback target]
+    (var h (.on @@ebus (str messageType "." event) callback target))
+    (when (and (array? h)
+               (not-empty h))
+      (conj! @@handlers (_1 h)) (_1 h)))
+
+  listenAll
+  (fn [callback target]
+    [(@@listen *OdinEvents*.MSG_NETWORK "*" callback target)
+     (@@listen *OdinEvents*.MSG_SESSION "*" callback target)])
+
+  cancelAll (fn [] (.removeAll @@ebus) (set! @@handlers []))
+
+  cancel
+  (fn [sid]
+    (sjs/removeFromArray @@handlers sid)
+    (.off @@ebus sid))
+
+  reset
+  (fn []
+    (assign! this
+             :onmessage #()
+             :onerror #()
+             :onclose #()
+             :handlers [])
+    (.removeAll @@ebus))
+
+  close
+  (fn []
+    (set! @@state *OdinEvents*.S_NOT_CONNECTED)
+    (@@reset)
+    (trye! (if @@ws (.close @@ws)))
+    (set! @@ws nil))
+
+  disconnect #(.close this)
+
+  onNetworkMsg (fn [evt] )
+
+  onSessionMsg (fn [evt] )
+
+  wsock
+  (fn [url]
+    (var ws (new WebSocket url)
+         me this)
+    ;;connection success
+    ;;send the play game request
+    (assign! ws
+             :onopen
+             (fn []
+               (set! me.state  *OdinEvents*.S_CONNECTED)
+               (.send ws (.getPlayRequest me)))
+             :onmessage
+             (fn [e]
+               (var evt (json_decode e))
+               (case evt.etype
+                 (*OdinEvents*.MSG_NETWORK *OdinEvents*.MSG_SESSION)
+                 (.onevent me evt)
+                 (cc.warn (str "unhandled server event: "
+                               evt.etype ", code = " evt.ecode))))
+             :onclose #(cc.log "closing websocket.")
+             :onerror #(cc.error (str "websocket error.\n" %1)))
+    @@ws)
+
+  getPlayRequest #(sjs.jsonfy (mkPlayRequest @@options.game
+                                             @@options.user @@options.passwd))
+  onevent #(.fire @@ebus (str evt.etype "." evt.ecode) evt))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createSession "" [cfg] (new Session cfg))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+
+
