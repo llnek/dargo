@@ -1,0 +1,43 @@
+
+(defcc HUDLayer scenes.XGameHUDLayer
+  initStuff
+  (fn []
+    (@@regoSheet "game-pics")
+    (var me this wb  (cx/vbox))
+    (set! @@scoreLabel
+          (cx/bmfLabel `{font (get-in *cfg* [:fonts :SmallTypeWriting])
+                         text "0"
+                         anchor *anchors*BottomRight
+                         scale (get-in *cfg* [:game :scale]) }))
+    (.setPosition @@scoreLabel
+                  (- wb.right csts.TILE csts.S_OFF)
+                  (- wb.top
+                     csts.TILE csts.S_OFF
+                     (cx/getScaledHeight @@scoreLabel)))
+    (@@addChild @@scoreLabel @@lastZix (++ @@lastTag))
+
+    (set! @@lives
+          (new scenes/XHUDLives
+               me
+               (+ csts.TILE csts.S_OFF)
+               (- wb.top csts.TILE csts.S_OFF)
+               `{frames ["health.png"]
+                 totalLives 3 }))
+    (.create @@lives))
+
+  ctor
+  (fn [options]
+    (var c cc.color.WHITE scale 1)
+    (._super this options)
+    (set! @@replay `{nnn "#icon_replay.png"
+                     anchor *anchors*.Bottom
+                     color c
+                     scale 1
+                     visible #f
+                     cb #(.fire @@ebus "hud.replay") }
+          @@menu `{nnn "#icon_menu.png"
+                   anchor *anchors*.Bottom
+                   color c
+                   scale 1
+                   cb #(.fire @@ebus "hud.showmenu") })))
+

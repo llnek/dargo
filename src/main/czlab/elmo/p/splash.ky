@@ -1,0 +1,37 @@
+
+(defcc SplashLayer elmo/XLayer
+  prologue
+  (fn []
+    (centerImage (get-in *cfg*
+                         [:assets :splash-bg]))
+    (@@title)
+    (@@bths))
+  onplay
+  (fn []
+    (var ss (get-in *cfg* [:scenes :start])
+         mm (get-in *cfg* [:scenes :mmenu]))
+    (cx/runScene (new mm
+                      `{onback
+                        #(cx/runScene (new ss)) })))
+  title
+  (fn []
+    (var cw (cx/vcenter)
+         wb (cx/vbox))
+    (@@addFrame "#title.png"
+                `{x cw.x y (* 0.9 wb.top) }))
+  btns
+  (fn []
+    (var cw (cx/vcenter)
+         wb (cx/vbox)
+         me this
+         m (cx/vmenu `{nnn "#play.png"
+                       ctx me
+                       sel #(.onplay me) }))
+    (.setPosition m cw.x (* 0.1 wb.top))
+    (@@addItem m)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn SplashScene "" [& args]
+  (new XScene [SplashLayer] args))
+
+

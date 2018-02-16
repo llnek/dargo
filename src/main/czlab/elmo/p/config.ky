@@ -1,0 +1,78 @@
+
+(ns czlab.elmo.invaders.config)
+
+(mixin *cfg* `{
+  :appKey "d39bf198-518a-4de7-88a0-5e28c88571b0"
+  :appid "invaders"
+  :color "red"
+  :resolution `{
+    :policy cc.ResolutionPolicy.FIXED_HEIGHT
+    :resSize [0 0]
+  }
+  :csts `{
+    :P_MS :missiles
+    :P_BS :bombs
+    :P_ES :explosions
+    :P_LMS :live-missiles
+    :P_LBS :live-bombs
+    :COLS 6
+    :ROWS 7
+    :CELLS 42
+    :LEFT  2
+    :TOP 6
+    :OFF_X 4
+    :OFF_Y 2
+  }
+
+  :assets `{
+    :images `{
+      :lang  "res/fonts/en/images.png"
+      :game  "res/pics/images.png"
+      :gui-mmenus-menu-bg "res/pics/bg.png"
+      :game.bg "res/pics/bg.png"
+      :SmallTypeWriting "res/fonts/en/SmallTypeWriting.png"
+      :AutoMission "res/fonts/en/AutoMission.png"
+      :Subito "res/fonts/en/Subito.png"
+      :CoffeeBuzzed "res/fonts/en/CoffeeBuzzed.png"
+    }
+    :sounds `{
+      :game_end "res/sfx/MineExplosion.mp3"
+      :game_quit "res/sfx/Death.mp3"
+      :ship-missile "res/sfx/missile.mp3"
+      :bugs-march "res/sfx/march.mp3"
+      :xxx-explode "res/sfx/explode.mp3"
+    }
+    :fonts `{
+      :SmallTypeWriting "res/fonts/en/SmallTypeWriting.fnt"
+      :AutoMission "res/fonts/en/AutoMission.fnt"
+      :Subito "res/fonts/en/Subito.fnt"
+      :CoffeeBuzzed "res/fonts/en/CoffeeBuzzed.fnt"
+    }
+    :plists `{
+              :lang  "res/fonts/en/images.plist"
+              :game  "res/pics/images.plist"
+              }
+  }
+
+  :game `{
+    :sd `{:width 320 :height 480 }
+  }
+
+  :handleResolution
+  (fn [rs]
+    ;;for default font, we use 48pt
+    (update-in! *cfg* [:game :scale] #(* (/ 52 256) (/ rs.width 320))))
+
+  :runOnce
+  (fn []
+    (.addSpriteFrames cc/spriteFrameCache
+              (sh.getPList :game))
+    (.addSpriteFrames cc/spriteFrameCache
+              (sh.getPList :lang)))
+  })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+
+

@@ -1,0 +1,50 @@
+
+(defcc MainMenuLayer scenes/XMenuLayer
+  title
+  (fn []
+    (var wb (cx/vbox)
+         cw (cx/vcenter)
+         tt (cx/bmfLabel
+              `{font (get-in *cfg* [:fonts :JellyBelly])
+                text (l10n "%mmenu")
+                x cw.x
+                y (* 0.9 wb.top)
+                color cc.color.WHITE
+                scale (get-in *cfg* [:game :scale]) }))
+    (@@addItem tt))
+  setup
+  (fn []
+    (@@centerImage (get-in *cfg* [:assets :gui-mmenus-menu-bg]))
+    (@@title)
+    (var c (cc.color 94 49 120)
+         cw  (cx/vcenter)
+         wb (cx/vbox)
+         me this
+         m (cx/vmenu `{nnn "#play.png"
+                       ctx me
+                       sel #(.onplay me `{ mode 1})}))
+    (.setPosition m cw)
+    (@@addItem m)
+    (set! m
+          (@@mkBackQuit #f
+                        `{nnn "#icon_back.png"
+                          color c ctx me cb onback }
+                        `{nnn "#icon_quit.png"
+                          color c ctx me cb #(.onQuit me) }))
+    (.setPosition m
+                  (+ wb.left csts.TILE (* z.width 1.1))
+                  (+ wb.bottom csts.TILE (* z.height 0.45)))
+    (@@addItem m)
+    (set! m
+          (@@mkAudio `{color c
+                       anchor *anchors*.BottomRight }))
+    (.setPosition m
+                  (- wb.right csts.TILE)
+                  (+ wb.bottom csts.TILE))
+    (@@addItem m))
+  onplay #(cx/runScene (new Game %)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createMainMenu "" [& args]
+    (new XScene [MainMenuLayer]))
+

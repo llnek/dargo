@@ -1,0 +1,128 @@
+
+(ns ^{:doc ""
+      :author ""}
+  czlab.elmo.invaders.boot)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn handleMultiDevices "" []
+  (if-some [f (get *cfg* :handleDevices)]
+          (f)
+          (handleMultiDevices* )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleMultiDevices* "" []
+  (var landscape? (get-in *cfg* [:game :landscape?])
+       searches (.getSearchPaths jsb/fileUtils)
+       pcy (get-in *cfg* [:resolution :policy])
+       ps []
+       fsz (cx/screenSize))
+  ;;device window size or canvas size.
+  (cc.log (str "view.frameSize = ["
+               fsz.width ", " fsz.height "]"))
+  ;; need to prefix "assets" for andriod
+  (cond
+    (or (>= fsz.width 2048) (>= fsz.height 2048))
+    (do (set! ps ["assets/res/hdr" "res/hdr"])
+        (update-in! *cfg* [:resolution :resDir] #("hdr"))
+        (cx/setdr landscape? 2048 1536 pcy))
+    (or (>= fsz.width 1136)(>= fsz.height 1136))
+    (do (set! ps ["assets/res/hds" "res/hds"])
+        (update-in! *cfg* [:resolution :resDir] #("hds"))
+        (cx/setdr landscape? 1136 640 pcy))
+    (or (>= fsz.width 1024)(>= fsz.height 1024))
+    (do (set! ps ["assets/res/hds" "res/hds"])
+        (update-in! *cfg* [:resolution :resDir] #("hds"))
+        (cx/setdr landscape? 1024 768 pcy))
+    (or (>= fsz.width 960)(>= fsz.height 960))
+    (do (set! ps ["assets/res/hds" "res/hds"])
+        (update-in! *cfg* [:resolution :resDir] #("hds"))
+        (cx/setdr landscape? 960 640 pcy))
+    :else
+    (do (set! ps ["assets/res/sd" "res/sd"])
+        (update-in! *cfg* [:resolution :resDir] #("sd"))
+        (cx/setdr landscape? 480 320 pcy)))
+  (each #(conj! searches %)
+        (concat ps ["assets/src" "src"]))
+  (cc.log (str "Resource search paths: " (K/prn searches #t)))
+  searches)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- pvGatherPreloads "" []
+  (var lang (get *cfg* :lang)
+       assets (get *cfg* :assets))
+  (-> []
+      (concat (map #(sanitizeUrl (str "res/fonts/" lang "/" %))
+                   (get assets :fonts)))
+      (concat (map #(sanitizeUrl %) (get assets :images)))
+      (concat (map #(sanitizeUrl %) (get assets :sounds)))
+      (concat (map #(sanitizeUrl %) (get assets :plist)))
+      (concat (map #(sanitizeUrl %) (get assets :tiles)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcz MyLoaderScene cc/Scene
+  init #(true)
+  startToLoad
+  (fn []
+    (var me this)
+    (@@unschedule @@startToLoad)
+    (.load cc/loader @@resources #() #(if (fn? me.cb) (me.cb))))
+  initWithResources
+  (fn [resources cb]
+    (set! @@resources (or resources []) @@cb cb))
+  onEnter
+  (fn []
+    (cc.Node.prototype.onEnter.call this)
+    (@@schedule @@_startLoading 0.3))
+  onExit #(cc.Node.prototype.onExit.call this))
+
+//////////////////////////////////////////////////////////////////////////////
+(defn- preLaunchApp "" []
+  (var fz (cx/screenSize) pfx "")
+  (var~ paths sz rs pcy)
+  (if cc.sys.isNative
+    (if-some+ [paths (handleMultiDevices)]
+      (.setSearchPaths jsb/fileUtils paths))
+    (do (set! sz (get-in *cfg* [:game
+                                (get-in *cfg* [:resolution :resDir])]))
+        (.setDesignResolutionSize cc/view
+                   sz.width sz.height
+                   (get-in *cfg* [:resolution :web]))))
+  ((get *cfg* :handleResolution)
+    (.getDesignResolutionSize cc/view))
+  (.setProjection cc/director cc/Director.PROJECTION_2D)
+  (when-not cc.sys.isNative
+    (.resizeWithBrowserSize cc/view true)
+    (.adjustViewPort cc/view true)
+    (set! pfx  "/public/elmo/res/"))
+  (if (get-in *cfg* [:game :debug?])
+    (.setDisplayStats cc/director (get-in *cfg* [:game :showFPS?])))
+  (set! rs [(str pfx "cocos2d/pics/preloader_bar.png")
+            (str pfx "cocos2d/pics/ZotohLab.png")])
+  ;; hack to suppress the showing of cocos2d's logo
+  (set! cc.loaderScene (new MyLoaderScene))
+  (.init cc.loaderScene)
+  (.initWithResources
+    cc.loaderScene
+    rs
+    #(.preload ldr
+            (pvGatherPreloads)
+            (fn [] ((get *cfg* :runOnce))
+      (.runScene cc/director
+                   ((get-in *cfg* [:game :start]))))))
+  (.runScene cc/director cc.loaderScene))
+
+(cc.log "About to create Cocos2D Game")
+(preLaunchApp)
+(l10nInit)
+(sfxInit)
+
+(cc.log "Registered game start state - " (get-in *cfg* [:game :start]))
+(cc.log (ax/jsonfy (get *cfg* :game)))
+(cc.log "Loaded and running. OK")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;EOF
+
+

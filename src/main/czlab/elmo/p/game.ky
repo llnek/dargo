@@ -1,0 +1,52 @@
+
+(ns czlab.elmo.invaders.game)
+
+(defcc BackLayer scenes/XLayer
+  setup #(@@centerImage (get-in *cfg* [:images :game-bg]))
+  rtti #(:BackLayer))
+
+(defcc GameLayer scenes/XGameLayer
+  pkInput #(cx/onKeyPolls @@keyboard)
+  reset
+  (fn [newFlag]
+    (if (not-empty @@atlases)
+      (each #(.removeAllChildren %) @@atlases)
+      (@@regoAtlas "game-pics" "lang-pics"))
+    (.reset @@getHUD))
+  operational #(@@isRunning?)
+  replay #(@@play #f)
+  play
+  (fn [newFlag]
+    (@@initEngine @@systems @@entityFactory)
+    (@@reset newFlag)
+    (true! @@isRunning?))
+  spawnPlayer #(.bornShip @@factory)
+  onPlayerKilled
+  (fn [msg]
+    (sfxPlay "xxx-explode")
+    (if (.reduceLives (@@getHUD) 1)
+      (@@onDone)
+      (@@spawnPlayer)))
+  onNewGame
+  (fn [mode]
+    (@@setGameMode mode)
+    (@@play true))
+  onEarnScore #(.updateScore @@HUD msg.score)
+  onDone
+  (fn []
+    (true! @@isRunning?)
+    (@@reset)
+    (.enableReplay @@HUD)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createGame "" [ &args ]
+  (var ret (new XScene [BackLayer GameLayer HUDLayer]))
+  (.onmsg scene
+          "game.earnscore" #(.onEarnScore scene %)
+          "hud.showmenu" #(.showMenu scene)
+          "hud.replay" #(.replay scene)
+          "game.killed" #(.onPlayerKilled scene %)) scene)
+
+
+
+
