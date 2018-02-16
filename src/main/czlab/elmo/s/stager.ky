@@ -1,0 +1,56 @@
+
+(defcc Stager ecs/System
+  ctor #(assign! this :state %)
+  removeFromEngine #(nil! @@shipMotions)
+  addToEngine
+  (fn [engine]
+    (set! @@ships
+          (.getNodeList engine gnodes.ShipMotionNode)))
+  initAlienSize
+  ;;pick purple since it is the largest
+  #(update-in! @@state
+               [:alienSize]
+               #(cx/csize "purple_bug_0.png"))
+  initShipSize
+  #(update-in! @@state
+               [:shipSize]
+               #(cx/csize "ship_0.png"))
+  update
+  (fn [dt]
+    (when-not (cx/isTransitioning?)
+      (when-not @@inited?
+        (@@onceOnly)
+        (true! @@inited?))))
+  onceOnly
+  (fn []
+    (.addPool @@engine
+              :Missiles :Bombs :Explosions)
+    (@@initAlienSize)
+    (@@initShipSize)
+    (.createMissiles @@engine)
+    (.createBombs @@engine)
+    (.createExplosions @@engine)
+    (.createAliens @@engine)
+    (.createShip @@engine)
+    (cx/onTouchOne this)
+    (cx/onMouse this)
+    (sh.main.pkInput))
+  fire
+  (fn [t evt]
+    (when (and (or (== t "touch.one.move")
+                   (== t "mouse.move"))
+               (get @@state :running?)
+               (some? @@ships.head))
+      (var ship @@ships.head.ship
+           pos (.pos ship)
+           x pos.x
+           y pos.y
+           wz (cx/vrect)
+           cur (cc/pAdd pos (cc/p evt.delta.x 0)))
+      (set! cur
+            (cc/pClamp cur
+                       (cc/p 0 0)
+                       (cc/p wz.width wz.height)))
+      (.setPos ship cur.x cur.y))))
+
+
