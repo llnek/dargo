@@ -1,0 +1,57 @@
+
+(defcc Resolve ecs/System
+  ctor #(assign! this :state %)
+  addToEngine
+  (fn [engine]
+    ;this.aliens= engine.getNodeList(gnodes.AlienMotionNode);
+    ;this.ships= engine.getNodeList(gnodes.ShipMotionNode);
+    ;this.engine=engine;
+  )
+  update
+  (fn [dt]
+    (var aliens this.aliens.head
+         ship this.ships.head)
+    (checkMissiles)
+    (checkBombs)
+    (checkAliens aliens)
+    (checkShip ship))
+
+  checkMissiles
+  (fn []
+    (var mss pools.Missiles
+         ht (.-height (cx/vrect)))
+    (each (fn [m]
+            (when m.status
+              (if (or (>= (.-y (.pos m)) ht)
+                      (<= m.HP 0))
+                (.deflate m)))) mss))
+
+  checkBombs
+  (fn []
+    (var bbs pools.Bombs
+         bt 0)
+    (each (fn [b]
+            (when b.status
+              (if (or (<= (.-y (.pos b)) bt)
+                      (<= b.HP 0))
+                (.deflate b)))) bbs))
+
+  checkAliens
+  (fn [node]
+    (var sqad node.aliens)
+    (each (fn [en]
+            (when en.status
+              (if (<= en.HP 0)
+                (fire "game.earnscore"
+                      `{ score en.value }))
+              (.deflate en)))
+          sqad.aliens.pool))
+
+  checkShip
+  (fn [node]
+    (var ship node.ship)
+    (when (and ship.status
+               (<= ship.HP 0))
+      (.deflate ship)
+      (fire "game.killed"))))
+

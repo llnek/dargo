@@ -1,0 +1,98 @@
+
+(defn Aliens "" [dt]
+  (var nodes (.findEntities @@engine :Aliens))
+  (processMovement ent dt)
+  (processBombs ent dt))
+
+(defn processMovement "" [ent dt]
+  (var lpr (.get ent Looper)
+       sqad (.get ent Aliens)
+       tm (_1 lpr.timers))
+  (when (cx/timerDone tm)
+    (maybeShuffleAliens sqad)
+    (aset lpr.timers (cx/undoTimer tm))))
+
+(defn processBombs "" [node dt]
+  (var lpr (.get node Looper)
+       sqad (.get node Aliens)
+       tm (_2 lpr.timers))
+  (when (cx/timerDone tm)
+    (checkBomb sqad)
+    (aset lpr.timers 1 (cx/undoTimer tm))))
+
+(defn checkBomb "" [sqad]
+  (var rc [])
+  (var~ n pos)
+  (for [i 0 sz (sqad.aliens.pool.size)
+        :while (< i sz) :recur (+1 i)]
+    (if (.-status (nth sqad.aliens.pool i))
+      (conj! rc i)))
+  (when (not-empty rc)
+    (set! n (if (= 1 (n# rc)) 0 (ax/rand (n# rc)))
+          pos (.getPosition (.-sprite (nth sqad.aliens.pool n))))
+    (dropBomb pos.x (- pos.y 4))))
+
+(defn dropBomb "" [x y]
+  (var bbs (pools.Bombs)
+       ent (.get bbs))
+  (when (nichts? ent)
+    (createBombs 25)
+    (set! ent (.get bbs)))
+  (.inflate ent `{ x x y y}))
+
+(defn- maybeShuffleAliens "" [sqad]
+  (var b (if (> sqad.stepx 0)
+           (findMaxX sqad) (findMinX sqad))
+       ok? false)
+  (when (and b (.-status b))
+    (set! ok? (if (testDirX b sqad.stepx)
+                (doShuffle sqad)
+                (doForward sqad)))
+    (if ok?
+        (sfxPlay "bugs-march"))))
+
+
+(defn- testDirX "" [b stepx]
+  (var wz (cx/vrect)
+       wb (cx/vbox)
+       sp b.sprite)
+  (if (> stepx 0)
+    (< (+ (cx/getRight sp) stepx)
+       (- wb.right (* (/ 2 40) wz.width)))
+    (> (+ (cx/getLeft sp) stepx)
+       (+ wb.left (* (/ 2 40) wz.width)))))
+
+(defn- shuffleOneAlien "" [a stepx]
+  (var pos (.getPosition a.sprite))
+  (.setPosition a.sprite (+ pos.x stepx) pos.y))
+
+(defn- forwardOneAlien "" [a delta]
+  (var pos (.getPosition a.sprite)
+       wz (cx/vrect)
+       wb (cx/vbox))
+  (.setPosition a.sprite pos.x (- pos.y delta)))
+
+(defn- doShuffle "" [sqad]
+  (var rc (filter #(.-status %) sqad.aliens.pool))
+  (each #(shuffleOneAlien a sqad.stepx) rc)
+  (not-empty rc))
+
+(defn- doForward "" [sqad]
+  (var rc (filter #(.-status %) sqad.aliens.pool)
+       delta (Math/abs sqad.stepx))
+  (each #(forwardOneAlien a delta) rc)
+  (set! sqad.stepx (- sqad.stepx))
+  (not-empty rc))
+
+(defn- findMinX "" [sqad]
+  (minBy (fn [a]
+           (if a.status
+             (cx/getLeft a.sprite)
+             (K/Max-Int))) sqad.aliens.pool))
+
+(defn- findMaxX "" [sqad]
+  (maxBy (fn [a]
+           (if a.status
+             (cx/getRight a.sprite) 0))
+         sqad.aliens.pool))
+

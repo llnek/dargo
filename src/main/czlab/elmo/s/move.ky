@@ -1,0 +1,69 @@
+
+
+(defcc Move ecs/System
+  ctor #(assign! this :state %)
+
+  addToEngine
+  (fn [engine]
+    ;this.shipMotions = engine.getNodeList(gnodes.ShipMotionNode)
+  )
+
+  update
+  (fn [dt]
+    (var node this.shipMotions.head)
+    (when this.state.running
+      (if node
+        (processShipMotions node dt))
+      (moveMissiles dt)
+      (moveBombs dt)))
+
+  processShipMotions
+  (fn [node dt]
+    (var motion node.motion
+         sv node.velocity
+         ship node.ship
+         pos (.pos ship)
+         x pos.x
+         y pos.y)
+    (if motion.right
+      (set! x (+ pos.x (*  dt sv.vel.x))))
+    (if motion.left
+      (set! x (- pos.x (* dt sv.vel.x))))
+
+    (.setPos ship x y)
+    (clamp ship)
+    (false! motion.right)
+    (false! motion.left))
+
+  clamp
+  (fn [ship]
+    (var sz (.getContentSize ship.sprite)
+         pos (.pos ship)
+         wz (cx/vrect))
+    (if (> (cx/getRight ship.sprite) (- wz.width csts.TILE))
+      (.setPos ship (- wz.width csts.TILE (div2 sz.width) pos.y)))
+    (if (< (cx/getLeft ship.sprite) csts.TILE)
+      (.setPos ship (+ csts.TILE (div2 sz.width)) pos.y)))
+
+  moveBombs
+  (fn [dt]
+    (var bbs pools.Bombs)
+    (var~ pos y)
+    (each (fn [b]
+            (when b.status
+              (set! pos (.pos b)
+                    y (+ pos.y (* dt b.vel.y)))
+              (.setPos b pos.x y))) bbs))
+
+  moveMissiles
+  (fn [dt]
+    (var mss pools.Missiles)
+    (var~ pos y)
+    (each (fn [m]
+            (set! pos (.pos m)
+                  y (+ pos.y (* dt m.vel.y)))
+            (.setPos m pos.x y)) mss)))
+
+
+
+

@@ -1,0 +1,77 @@
+
+(defcc Motions ecs/System
+
+  ctor #(assign! this :state %)
+
+  addToEngine
+  (fn [engine]
+    ;this.alienMotions = engine.getNodeList(gnodes.AlienMotionNode);
+    ;his.shipMotions = engine.getNodeList(gnodes.ShipMotionNode);
+    ;his.cannons = engine.getNodeList(gnodes.CannonCtrlNode);
+    )
+
+  update
+  (fn [dt]
+    (var aliens this.alienMotions.head
+         ships this.shipMotions.head
+         cns this.cannons.head)
+    (when this.state.running
+      (if aliens
+        (processAlienMotions aliens dt))
+      (if cns
+        (controlCannon cns dt))
+      (if ships
+        (scanInput ships dt))))
+
+  controlCannon
+  (fn [node dt]
+    (var gun node.cannon
+         klpr node.looper
+         ship node.ship
+         t (_1 lpr.timers))
+    (if-not gun.hasAmmo?
+      (when (cx/timerDone t)
+        (.setSpriteFrame ship.sprite (_1 ship.frames))
+        (true! gun.hasAmmo?)
+        (aset lpr.timers 0 (cx/undoTimer t)))
+      (if (.keyPoll *main* cc/KEY.space)
+        (fireMissile node dt))))
+
+  fireMissile
+  (fn [node dt]
+    (var top (cx/getTop node.ship.sprite)
+         p pools.Missiles
+         ship node.ship
+         pos (.pos ship)
+         lpr node.looper
+         gun node.cannon
+         ent (.get p))
+    (when-not ent
+      (createMissiles 36)
+      (set! ent (.get p)))
+    (.inflate ent `{ x pos.x y (+ top 4) })
+
+    (aset lpr.timers 0 (cx/createTimer *main* gun.coolDownWindow))
+    (false! gun.hasAmmo?)
+    (.setSpriteFrame ship.sprite (_2 ship.frames))
+    (sfxPlay "ship-missile"))
+
+  scanInput
+  (fn [node dt]
+    (var s node.ship
+         m node.motion)
+    (if (.keyPoll *main* cc.KEY.right)
+      (true! m.right))
+    (if (.keyPoll *main* cc.KEY.left)
+      (true! m.left)))
+
+  processAlienMotions
+  (fn [node dt]
+    (var lpr node.looper
+         sqad node.aliens)
+    (if-not (_1 lpr.timers)
+      (aset lpr.timers 0 (cx/createTimer *main* 1)))
+    (if-not (_2 lpr.timers)
+      (aset lpr.timers 1 (cx/createTimer *main* 2)))))
+
+

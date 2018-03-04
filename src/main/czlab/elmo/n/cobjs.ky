@@ -1,0 +1,71 @@
+
+(defcc AlienSquad ecs/Component
+  ctor (fn [aliens step] (assign! this :aliens aliens :step step)))
+
+(defcc Alien ecs/Component
+  ctor (fn [sprite value rank]
+         (._super this)
+         (assign! this :sprite sprite :value value :rank rank)))
+
+(defcc Bomb ecs/Component
+  ctor
+  (fn [sprite]
+    (var wz (cx/vrect))
+    (assign! this
+             :sprite sprite
+             :vel `{ x 0 y (* -50 (/ wz.height 48)) })))
+
+(defcc Cannon ecs/Component
+  ctor
+  (fn [coolDownWindow]
+    (assign! this
+             :hasAmmo? true
+             :coolDownWindow (or coolDownWindow 0.8))))
+
+(defcc Explosion ecs/Component
+  ctor
+  (fn [sprite]
+    (assign! this :sprite sprite :frameTime 0.1))
+  inflate
+  (fn [options]
+    (var frames [(cx/getSprite "boom_0.png")
+                 (cx/getSprite "boom_1.png")
+                 (cx/getSprite "boom_2.png")
+                 (cx/getSprite "boom_3.png")]
+         me this
+         anim (new cc/Animation frames @@frameTime))
+    (.setPosition @@sprite options.x options.y)
+    (true! @@status)
+    (.runAction @@sprite
+                (new cc/Sequence
+                     (new cc/Animate anim)
+                     (new cc/CallFunc #(.deflate me))))))
+
+(defcc Looper ecs/Component
+  ctor
+  (fn [count]
+    (assign! this :timers (fillArray count nil))))
+
+(defcc Missile ecs/Component
+  ctor
+  (fn [sprite]
+    (var wz (cx/vrect))
+    (assign! this
+             :sprite sprite
+             :vel `{ x 0
+                     y (* 150 (/ wz.height 480)) })))
+
+(defcc Motion ecs/Component
+  ctor #(assign! this :right false :left false))
+
+(defcc Ship ecs/Component
+  ctor
+  (fn [sprite frames]
+    (assign! this :sprite sprite :frames frames)))
+
+(defcc Velocity ecs/Component
+  ctor
+  (fn [vx vy]
+    (assign! this :vel `{ x (or vx 0)
+                         y (or vy 0) })))
+

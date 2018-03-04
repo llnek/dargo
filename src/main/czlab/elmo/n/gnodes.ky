@@ -1,81 +1,19 @@
 
 (defcc AlienMotionNode ecs/Entity
-  ctor #()
-  init #()
-  /**
-   * @memberof module:n/gnodes~AlienMotionNode
-   * @property {AlienSquad} aliens
-   */
-  aliens  : cobjs.AlienSquad,
-  /**
-   * @memberof module:n/gnodes~AlienMotionNode
-   * @property {Looper} looper
-   */
-  looper  : cobjs.Looper
-});
-/**
- * @property {AlienMotionNode} AlienMotionNode
- */
-xbox.AlienMotionNode = AlienMotionNode;
+  ctor
+  (fn []
+    (@@checkin (new AlienSquad)
+               (new Looper))))
 
-//////////////////////////////////////////////////////////////////////////////
-/**
- * @class CannonCtrlNode
- */
-const CannonCtrlNode = sh.Ashley.nodeDef({
-  /**
-   * @memberof module:n/gnodes~CannonCtrlNode
-   * @property {Looper} looper
-   */
-  looper  : cobjs.Looper,
-  /**
-   * @memberof module:n/gnodes~CannonCtrlNode
-   * @property {Cannon} cannon
-   */
-  cannon  : cobjs.Cannon,
-  /**
-   * @memberof module:n/gnodes~CannonCtrlNode
-   * @property {Ship} ship
-   */
-  ship    : cobjs.Ship
-});
-/**
- * @property {CannonCtrlNode} CannonCtrlNode
- */
-xbox.CannonCtrlNode = CannonCtrlNode;
+(defcc CannonCtrlNode ecs/Entity
+  ctor
+  (fn []
+    (@@checkin (new Looper)
+               (new Cannon)
+               (new Ship))))
 
-//////////////////////////////////////////////////////////////////////////////
-/**
- * @class ShipMotionNode
- */
-const ShipMotionNode = sh.Ashley.nodeDef({
-  /**
-   * @memberof module:n/gnodes~ShipMotionNode
-   * @property {Velocity} velocity
-   */
-  velocity  : cobjs.Velocity,
-  /**
-   * @memberof module:n/gnodes~ShipMotionNode
-   * @property {Motion} motion
-   */
-  motion    : cobjs.Motion,
-  /**
-   * @memberof module:n/gnodes~ShipMotionNode
-   * @property {Ship} ship
-   */
-  ship      : cobjs.Ship
-});
-/**
- * @property {ShipMotionNode} ShipMotionNode
- */
-xbox.ShipMotionNode = ShipMotionNode;
-
-
-
-sjs.merge(exports, xbox);
-/*@@
-return xbox;
-@@*/
-//////////////////////////////////////////////////////////////////////////////
-//EOF
+(defcc ShipMotionNode ecs/Entity
+  ctor
+  (fn []
+    (@@checkin (new Velocity) (new Motion) (new Ship))))
 

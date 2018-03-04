@@ -1,0 +1,94 @@
+
+
+(defn createMissiles "" []
+  (var sp (cx/createSprite "missile.png"))
+  (.setVisible sp #f)
+  (.addItem *main* "game-pics" sp)
+  (new Missile sp))
+
+(defn createExplosions "" []
+  (var sp (cx/createSprite "boom_0.png"))
+  (.setVisible sp #f)
+  (.addItem *main* "game-pics" sp)
+  (new Explosion sp))
+
+(defn createBombs "" []
+  (var sp (cx/createSprite "bomb.png"))
+  (.setVisible sp #f)
+  (.addItem *main* "game-pics" sp)
+  (new Bomb sp))
+
+(defn getRankInfo "" [rank]
+  (cond
+    (< rank 3)
+    [100 [ "blue_bug_0.png" "blue_bug_1.png" ] (cx/csize "blue_bug_0.png") ]
+    (< rank 5)
+    [50 [ "green_bug_0.png" "green_bug_1.png" ] (cx/csize "green_bug_0.png") ]
+    :else
+    [30  [ "purple_bug_0.png" "purple_bug_1.png" ] (cx/csize "purple_bug_0.png") ]))
+
+(defn fillSquad ""  [pool]
+  (var az this.state.alienSize
+       wz (cx/vrect)
+       wb (cx/vbox)
+       row 0
+       info (getRankInfo row)
+       az (nth info 2))
+  (var~ x y)
+  (for [n 0 :while (< n csts.CELLS) :recur (+1 n)]
+    (when (zero? (rem n csts.COLS))
+      (set! y (if (zero? 0)
+                (* 0.9 wb.top)
+                (- y az.height (* wz.height  (/ 4 480))))
+            x  (+ wb.left (* (/ 8 320) wz.width) (div2 az.width))
+            row (+1 row)
+            info (getRankInfo row)
+            az (nth info 2)))
+    (set! aa (cx/createSprite (_1 (_2 info))))
+    (.setPosition aa (+ x az.width) (- y (az.height)))
+    (.runAction aa
+                (new cc/RepeatForever
+                     (new cc/Animate
+                          (new cc/Animation
+                               [(cx/getSprite (_1 (_2 info)))
+                                (cx/getSprite (_2 (_2 info))) ] 1))))
+    (.addItem *main* "game-pics" aa)
+    (+= x (+ az.width (* (/ 8 320) wz.width)))
+    (set! aa (Alien aa (.-row (_1 info)))
+          aa.status true)
+    (.push pool aa)))
+
+(defn createAliens "" []
+  (var stepx (/ alienSize.width 3)
+       ent (newEntity)
+       aliens (.create pool)
+       me this)
+  (.fillSquad me aliens)
+  (.checkin ent (new AlienSquad aliens stepx))
+  (.checkin ent (new Looper 2))
+  (.addEntity engine ent))
+
+(defn bornShip "" [ship]
+  (.inflate ship))
+
+(defn createShip "" []
+  (var s (cx/createSprite "ship_1.png")
+       ent (new newEntity)
+       wz (cx/vrect)
+       wb (cx/vbox)
+       y (+ shipSize.height
+            wb.bottom
+            (* (/ 5 60) wz.height))
+       x (+ wb.left (div2 wz.width)))
+  (.addItem *main* "game-pics" s)
+  (set! ship (new Ship s ["ship_1.png" "ship_0.png"]))
+  (set! this.state.ship ship)
+  (.inflate ship `{ x x y y})
+  (.checkin ent ship)
+  (.checkin ent (new Velocity 150,0))
+  (.checkin ent (new Looper 1))
+  (.checkin ent (new Cannon))
+  (.checkin ent (new Motion))
+  (.addEntity @@engine ent))
+
+

@@ -1,0 +1,71 @@
+(defcc Collide ecs/System
+  ctor (fn [options]
+         (set! this.state options))
+  addToEngine
+  (fn [engine]
+    (set! this.engine engine))
+
+  update
+  (fn [dt]
+    (var aliens this.aliens.head
+         ship  this.ships.head)
+    (checkMissilesAliens aliens)
+    (when ship
+      (checkShipBombs ship)
+      (if aliens
+        (checkShipAliens aliens ship))))
+
+  collide
+  (fn [a b]
+    (cx/collide a b))
+
+  checkMissilesBombs
+  (fn []
+    (var mss pools.Missiles
+         bbs pools.Bombs)
+    (each (fn [m]
+            (each (fn [b]
+                    (when (and b.status
+                               m.status
+                               (collide m b))
+                      (.hurt b)
+                      (.hurt m))) bbs)) mss))
+
+  checkMissilesAliens
+  (fn [node]
+    (var mss pools.Missiles
+         sqad node.aliens)
+    (each (fn [en]
+            (if en.status
+              (each (fn [m]
+                      (when (and m.status
+                                 (collide en m))
+                        (.hurt en)
+                        (.hurt m))) mss)))
+          sqad.aliens.pool))
+
+  checkShipBombs
+  (fn [node]
+    (var bbs pools.Bombs
+         ship node.ship)
+    (each (fn [b]
+            (when (and ship.status
+                       b.status
+                       (collide ship b))
+              (.hurt ship)
+              (.hurt b))) bbs))
+
+  checkShipAliens
+  (fn [anode snode]
+    (var sqad anode.aliens
+         ship snode.ship
+         sz (n# sqad.aliens))
+    (each (fn [en]
+            (when (and ship.status
+                       en.status
+                       (collide ship en))
+              (.hurt ship)
+              (.hurt en)))
+          sqad.aliens.pool)))
+
+
